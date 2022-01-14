@@ -1,5 +1,17 @@
+"""
+Yield from multiple iterators as values become available
+
+Visit <https://github.com/jwodder/interleave> for more information.
+"""
+
+__version__ = "0.1.0.dev1"
+__author__ = "John Thorvald Wodder II"
+__author_email__ = "interleave@varonathe.org"
+__license__ = "MIT"
+__url__ = "https://github.com/jwodder/interleave"
+
 from concurrent.futures import ThreadPoolExecutor
-from queue import Queue, Empty
+from queue import Empty, Queue
 from typing import Iterable, Iterator, Optional, TypeVar
 
 T = TypeVar("T")

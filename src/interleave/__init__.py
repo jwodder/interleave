@@ -25,7 +25,7 @@ def interleave(
     queue_wait: float = 1.0
 ) -> Iterator[T]:
     pool = ThreadPoolExecutor(max_workers=max_workers)
-    queue = Queue(queue_size)
+    queue: Queue[T] = Queue(queue_size)
     futures = []
 
     def run_iterator(it: Iterator[T]) -> None:

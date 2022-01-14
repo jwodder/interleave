@@ -27,7 +27,7 @@ def test_simple() -> None:
     for i, x in enumerate(
         interleave(sleeper(i, intervals) for i, intervals in enumerate(INTERVALS))
     ):
-        assert isclose(monotonic() - start, i * UNIT, rel_tol=0.1, abs_tol=0.1)
+        assert isclose(monotonic() - start, i * UNIT, rel_tol=0.3, abs_tol=0.1)
         woven.append(x)
     assert woven == [
         (0, 0),

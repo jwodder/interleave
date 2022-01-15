@@ -1,4 +1,5 @@
 from math import isclose
+import os
 from time import monotonic, sleep
 from typing import Iterator, List, Optional, Sequence, Tuple, Union
 import pytest
@@ -20,6 +21,7 @@ def sleeper(tid: int, delays: Sequence[Union[int, str]]) -> Iterator[Tuple[int, 
             raise RuntimeError(d)
 
 
+@pytest.mark.flaky(reruns=5, condition="CI" in os.environ)
 def test_simple() -> None:
     INTERVALS = [
         (0, 1, 2),
@@ -47,6 +49,7 @@ def test_simple() -> None:
     ]
 
 
+@pytest.mark.flaky(reruns=5, condition="CI" in os.environ)
 def test_simple_error() -> None:
     INTERVALS: List[Tuple[Union[int, str], ...]] = [
         (0, 1, 2),

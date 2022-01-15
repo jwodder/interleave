@@ -1,7 +1,7 @@
 from math import isclose
 import os
 from time import monotonic, sleep
-from typing import Iterator, List, Optional, Sequence, Tuple, Union
+from typing import Any, Iterator, List, Optional, Sequence, Tuple, Union
 import pytest
 from interleave import interleave
 
@@ -80,3 +80,9 @@ def test_simple_error() -> None:
                 next(it)
             assert str(excinfo.value) == "This is an error."
             break
+
+
+def test_no_iterators() -> None:
+    it: Iterator[Any] = interleave([])
+    with pytest.raises(StopIteration):
+        next(it)

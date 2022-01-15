@@ -141,8 +141,12 @@ def interleave(
 ) -> Iterator[T]:
     pool = ThreadPoolExecutor(max_workers=max_workers)
     funnel: FunnelQueue[Result[T]] = FunnelQueue(queue_size)
+    qty = 0
     for it in iterators:
         pool.submit(funnel_iterator, funnel, it)
+        qty += 1
+    if qty == 0:
+        return
     while True:
         try:
             r = funnel.get()

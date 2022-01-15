@@ -6,6 +6,7 @@ Visit <https://github.com/jwodder/interleave> for more information.
 
 from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from queue import Queue, SimpleQueue
 import sys
 from threading import Lock
@@ -95,21 +96,20 @@ class FunnelQueue(Generic[T]):
         self.lock = Lock()
         self.done_sentinel = object()
 
-    def _acquire_producer(self) -> None:
+    @contextmanager
+    def putting(self) -> Iterator[None]:
         with self.lock:
             self.producer_qty += 1
+        try:
+            yield
+        finally:
+            with self.lock:
+                self.producer_qty -= 1
+                if self.producer_qty == 0:
+                    self.put(cast(T, self.done_sentinel))
 
-    def _release_producer(self) -> None:
-        with self.lock:
-            self.producer_qty -= 1
-            if self.producer_qty == 0:
-                self._put(cast(T, self.done_sentinel))
-
-    def _put(self, value: T) -> None:
+    def put(self, value: T) -> None:
         self.queue.put(value)
-
-    def putter(self) -> FunnelPutter[T]:
-        return FunnelPutter(self)
 
     def get(self) -> T:
         x = self.queue.get()
@@ -119,38 +119,18 @@ class FunnelQueue(Generic[T]):
             return x
 
 
-class FunnelPutter(Generic[T]):
-    def __init__(self, funnel: FunnelQueue[T]) -> None:
-        self.funnel = funnel
-
-    def __enter__(self) -> FunnelPutter[T]:
-        self.funnel._acquire_producer()
-        return self
-
-    def __exit__(
-        self,
-        _exc_type: Optional[Type[BaseException]],
-        _exc_val: Optional[BaseException],
-        _exc_tb: Optional[TracebackType],
-    ) -> None:
-        self.funnel._release_producer()
-
-    def __call__(self, value: T) -> None:
-        self.funnel._put(value)
-
-
 def funnel_iterator(funnel: FunnelQueue[Result[T]], it: Iterator[T]) -> None:
-    with funnel.putter() as put:
+    with funnel.putting():
         while True:
             try:
                 x = next(it)
             except StopIteration:
                 return
             except BaseException:
-                put(Result.for_exc())
+                funnel.put(Result.for_exc())
                 return
             else:
-                put(Result(x))
+                funnel.put(Result(x))
 
 
 def interleave(

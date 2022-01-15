@@ -1,10 +1,14 @@
 from math import isclose
 from time import monotonic, sleep
-from typing import Iterator, List, Sequence, Tuple, Union
+from typing import Iterator, List, Optional, Sequence, Tuple, Union
 import pytest
 from interleave import interleave
 
 UNIT = 0.5
+
+
+def close2unit(f: float) -> bool:
+    return isclose(f, UNIT, rel_tol=0.3, abs_tol=0.1)
 
 
 def sleeper(tid: int, delays: Sequence[Union[int, str]]) -> Iterator[Tuple[int, int]]:
@@ -23,11 +27,12 @@ def test_simple() -> None:
         (5, 2, 1),
     ]
     woven = []
-    start = monotonic()
-    for i, x in enumerate(
-        interleave(sleeper(i, intervals) for i, intervals in enumerate(INTERVALS))
-    ):
-        assert isclose(monotonic() - start, i * UNIT, rel_tol=0.3, abs_tol=0.1)
+    last_yield: Optional[float] = None
+    for x in interleave(sleeper(i, intervals) for i, intervals in enumerate(INTERVALS)):
+        this_yield = monotonic()
+        if last_yield is not None:
+            assert close2unit(this_yield - last_yield)
+        last_yield = this_yield
         woven.append(x)
     assert woven == [
         (0, 0),
@@ -55,14 +60,17 @@ def test_simple_error() -> None:
         (0, 2),
         (1, 1),
     ]
-    start = monotonic()
+    last_yield: Optional[float] = None
     i = 0
     it = interleave(sleeper(i, intervals) for i, intervals in enumerate(INTERVALS))
     while True:
         if i < len(expected):
             x = next(it)
             assert x == expected[i]
-            assert isclose(monotonic() - start, i * UNIT, rel_tol=0.1, abs_tol=0.1)
+            this_yield = monotonic()
+            if last_yield is not None:
+                assert close2unit(this_yield - last_yield)
+            last_yield = this_yield
             i += 1
         else:
             with pytest.raises(RuntimeError) as excinfo:

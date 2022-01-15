@@ -1,3 +1,4 @@
+from itertools import count
 from math import isclose
 import os
 from threading import active_count
@@ -61,7 +62,7 @@ def test_simple() -> None:
 
 
 @pytest.mark.flaky(reruns=5, condition="CI" in os.environ)
-def test_simple_timing() -> None:
+def test_timing() -> None:
     INTERVALS = [
         (0, 1, 2),
         (2, 2, 2),
@@ -73,24 +74,6 @@ def test_simple_timing() -> None:
         if prev is not None:
             assert isclose(now - prev, UNIT, rel_tol=0.3, abs_tol=0.1)
         prev = now
-
-
-def test_simple_error() -> None:
-    INTERVALS: List[Tuple[Union[int, str], ...]] = [
-        (0, 1, 2),
-        (2, 2, "This is an error.", "This is not raised."),
-        (5, "This is not seen.", 1),
-    ]
-    threads = active_count()
-    cb = MagicMock()
-    it = interleave(sleeper(i, intervals, cb) for i, intervals in enumerate(INTERVALS))
-    for expected in [(0, 0), (0, 1), (1, 0), (0, 2), (1, 1)]:
-        assert next(it) == expected
-    with pytest.raises(RuntimeError) as excinfo:
-        next(it)
-    assert str(excinfo.value) == "This is an error."
-    assert active_count() == threads
-    assert cb.call_args_list == [call(0), call(1)]
 
 
 def test_no_iterators() -> None:
@@ -119,3 +102,49 @@ def test_ragged() -> None:
         (2, 1),
         (0, 4),
     ]
+
+
+def test_error() -> None:
+    INTERVALS: List[Tuple[Union[int, str], ...]] = [
+        (0, 1, 2),
+        (2, 2, "This is an error.", "This is not raised."),
+        (5, "This is not seen.", 1),
+    ]
+    threads = active_count()
+    cb = MagicMock()
+    it = interleave(sleeper(i, intervals, cb) for i, intervals in enumerate(INTERVALS))
+    for expected in [(0, 0), (0, 1), (1, 0), (0, 2), (1, 1)]:
+        assert next(it) == expected
+    with pytest.raises(RuntimeError) as excinfo:
+        next(it)
+    assert str(excinfo.value) == "This is an error."
+    assert active_count() == threads
+    assert cb.call_args_list == [call(0), call(1)]
+
+
+def test_error_sized_queue() -> None:
+    INTERVALS: List[Tuple[Union[int, str], ...]] = [
+        (0, 1, 2),
+        (2, 2, "This is an error.", "This is not raised."),
+        (5, "This is not seen.", 1),
+    ]
+
+    def queue_spam(tid: int) -> Iterator[Tuple[int, int]]:
+        sleep(6 * UNIT)
+        for i in count():
+            yield (tid, i)
+
+    threads = active_count()
+    cb = MagicMock()
+    it = interleave(
+        [sleeper(i, intervals, cb) for i, intervals in enumerate(INTERVALS)]
+        + [queue_spam(len(INTERVALS))],
+        queue_size=4,
+    )
+    for expected in [(0, 0), (0, 1), (1, 0), (0, 2), (1, 1)]:
+        assert next(it) == expected
+    with pytest.raises(RuntimeError) as excinfo:
+        next(it)
+    assert str(excinfo.value) == "This is an error."
+    assert active_count() == threads
+    assert cb.call_args_list == [call(0), call(1)]

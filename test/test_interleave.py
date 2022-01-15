@@ -1,5 +1,6 @@
 from math import isclose
 import os
+from threading import active_count
 from time import monotonic, sleep
 from typing import Any, Iterator, List, Optional, Sequence, Tuple, Union
 import pytest
@@ -23,6 +24,7 @@ def test_simple() -> None:
         (2, 2, 2),
         (5, 2, 1),
     ]
+    threads = active_count()
     assert list(
         interleave(sleeper(i, intervals) for i, intervals in enumerate(INTERVALS))
     ) == [
@@ -36,6 +38,7 @@ def test_simple() -> None:
         (2, 1),
         (2, 2),
     ]
+    assert active_count() == threads
 
 
 @pytest.mark.flaky(reruns=5, condition="CI" in os.environ)
@@ -59,12 +62,14 @@ def test_simple_error() -> None:
         (2, 2, "This is an error.", "This is not raised."),
         (5, "This is not seen.", 1),
     ]
+    threads = active_count()
     it = interleave(sleeper(i, intervals) for i, intervals in enumerate(INTERVALS))
     for expected in [(0, 0), (0, 1), (1, 0), (0, 2), (1, 1)]:
         assert next(it) == expected
     with pytest.raises(RuntimeError) as excinfo:
         next(it)
     assert str(excinfo.value) == "This is an error."
+    assert active_count() == threads
 
 
 def test_no_iterators() -> None:

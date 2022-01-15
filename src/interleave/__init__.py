@@ -13,6 +13,7 @@ from threading import Event, Lock
 from types import TracebackType
 from typing import (
     Any,
+    ContextManager,
     Generic,
     Iterable,
     Iterator,
@@ -96,10 +97,13 @@ class FunnelQueue(Generic[T]):
         self.lock = Lock()
         self.done_sentinel = object()
 
-    @contextmanager
-    def putting(self) -> Iterator[None]:
+    def putting(self) -> ContextManager[None]:
         with self.lock:
             self.producer_qty += 1
+        return self._close_one()
+
+    @contextmanager
+    def _close_one(self) -> Iterator[None]:
         try:
             yield
         finally:
@@ -128,8 +132,8 @@ def interleave(
     funnel: FunnelQueue[Result[T]] = FunnelQueue(queue_size)
     done_flag = Event()
 
-    def process(it: Iterator[T]) -> None:
-        with funnel.putting():
+    def process(ctx: ContextManager[None], it: Iterator[T]) -> None:
+        with ctx:
             while not done_flag.is_set():
                 try:
                     x = next(it)
@@ -142,7 +146,14 @@ def interleave(
                     funnel.put(Result(x))
 
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        futures = [pool.submit(process, it) for it in iterators]
+        # `funnel.putting()` needs to be called outside of the thread so that
+        # the producer count is at its correct value at the start, regardless
+        # of how many threads are or aren't running yet.  This matters in the
+        # case where an initial batch of threads have all finished but there
+        # are still pending threads yet to be started; when this happens, we
+        # don't want the last thread in the first batch to trigger an
+        # EndOfInputError.
+        futures = [pool.submit(process, funnel.putting(), it) for it in iterators]
         if not futures:
             return
         while True:

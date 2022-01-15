@@ -71,3 +71,25 @@ def test_no_iterators() -> None:
     it: Iterator[Any] = interleave([])
     with pytest.raises(StopIteration):
         next(it)
+
+
+def test_ragged() -> None:
+    INTERVALS = [
+        (0, 1, 2, 3, 3),
+        (2, 2, 3),
+        (5, 3),
+    ]
+    assert list(
+        interleave(sleeper(i, intervals) for i, intervals in enumerate(INTERVALS))
+    ) == [
+        (0, 0),
+        (0, 1),
+        (1, 0),
+        (0, 2),
+        (1, 1),
+        (2, 0),
+        (0, 3),
+        (1, 2),
+        (2, 1),
+        (0, 4),
+    ]

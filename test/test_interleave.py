@@ -2,20 +2,29 @@ from math import isclose
 import os
 from threading import active_count
 from time import monotonic, sleep
-from typing import Any, Iterator, List, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Iterator, List, Optional, Sequence, Tuple, Union
+from unittest.mock import MagicMock, call
 import pytest
 from interleave import interleave
 
 UNIT = 0.5
 
 
-def sleeper(tid: int, delays: Sequence[Union[int, str]]) -> Iterator[Tuple[int, int]]:
-    for i, d in enumerate(delays):
-        if isinstance(d, int):
-            sleep(d * UNIT)
-            yield (tid, i)
-        else:
-            raise RuntimeError(d)
+def sleeper(
+    tid: int,
+    delays: Sequence[Union[int, str]],
+    done_callback: Optional[Callable[[int], Any]] = None,
+) -> Iterator[Tuple[int, int]]:
+    try:
+        for i, d in enumerate(delays):
+            if isinstance(d, int):
+                sleep(d * UNIT)
+                yield (tid, i)
+            else:
+                raise RuntimeError(d)
+    finally:
+        if done_callback is not None:
+            done_callback(tid)
 
 
 def test_simple() -> None:
@@ -25,8 +34,9 @@ def test_simple() -> None:
         (5, 2, 1),
     ]
     threads = active_count()
+    cb = MagicMock()
     assert list(
-        interleave(sleeper(i, intervals) for i, intervals in enumerate(INTERVALS))
+        interleave(sleeper(i, intervals, cb) for i, intervals in enumerate(INTERVALS))
     ) == [
         (0, 0),
         (0, 1),
@@ -39,6 +49,7 @@ def test_simple() -> None:
         (2, 2),
     ]
     assert active_count() == threads
+    assert cb.call_args_list == [call(i) for i in range(len(INTERVALS))]
 
 
 @pytest.mark.flaky(reruns=5, condition="CI" in os.environ)

@@ -15,16 +15,24 @@ def sleeper(
     delays: Sequence[Union[int, str]],
     done_callback: Optional[Callable[[int], Any]] = None,
 ) -> Iterator[Tuple[int, int]]:
-    try:
-        for i, d in enumerate(delays):
-            if isinstance(d, int):
-                sleep(d * UNIT)
-                yield (tid, i)
-            else:
-                raise RuntimeError(d)
-    finally:
-        if done_callback is not None:
-            done_callback(tid)
+    for i, d in enumerate(delays):
+        if isinstance(d, int):
+            sleep(d * UNIT)
+            yield (tid, i)
+        else:
+            if done_callback is not None:
+                done_callback(tid)
+            raise RuntimeError(d)
+    # We're not putting this under a `finally:` block because (on macOS 11.6
+    # Intel with Python 3.9.9 and 3.10.1, at least) doing so would mean it
+    # would fire if & when `cancel()` is called on the corresponding future
+    # while it's running (in which case a GeneratorExit gets raised in this
+    # function), but only if the iterable of iterators passed to `interleave()`
+    # was an iterator rather than a list.  I have been unable to write an MVCE
+    # that reproduces this behavior, and I'm not sure if it's even worth
+    # looking into.
+    if done_callback is not None:
+        done_callback(tid)
 
 
 def test_simple() -> None:

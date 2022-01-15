@@ -142,11 +142,8 @@ def interleave(
                     funnel.put(Result(x))
 
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        qty = 0
-        for it in iterators:
-            pool.submit(process, it)
-            qty += 1
-        if qty == 0:
+        futures = [pool.submit(process, it) for it in iterators]
+        if not futures:
             return
         while True:
             try:
@@ -156,4 +153,6 @@ def interleave(
             else:
                 if not r.success:
                     done_flag.set()
+                    for f in futures:
+                        f.cancel()
                 yield r.get()

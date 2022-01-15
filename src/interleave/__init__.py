@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from queue import Queue, SimpleQueue
 import sys
-from threading import Lock
+from threading import Event, Lock
 from types import TracebackType
 from typing import (
     Any,
@@ -119,31 +119,32 @@ class FunnelQueue(Generic[T]):
             return x
 
 
-def funnel_iterator(funnel: FunnelQueue[Result[T]], it: Iterator[T]) -> None:
-    with funnel.putting():
-        while True:
-            try:
-                x = next(it)
-            except StopIteration:
-                return
-            except BaseException:
-                funnel.put(Result.for_exc())
-                return
-            else:
-                funnel.put(Result(x))
-
-
 def interleave(
     iterators: Iterable[Iterator[T]],
     *,
     max_workers: Optional[int] = None,
     queue_size: Optional[int] = None,
 ) -> Iterator[T]:
+    funnel: FunnelQueue[Result[T]] = FunnelQueue(queue_size)
+    done_flag = Event()
+
+    def process(it: Iterator[T]) -> None:
+        with funnel.putting():
+            while not done_flag.is_set():
+                try:
+                    x = next(it)
+                except StopIteration:
+                    return
+                except BaseException:
+                    funnel.put(Result.for_exc())
+                    return
+                else:
+                    funnel.put(Result(x))
+
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        funnel: FunnelQueue[Result[T]] = FunnelQueue(queue_size)
         qty = 0
         for it in iterators:
-            pool.submit(funnel_iterator, funnel, it)
+            pool.submit(process, it)
             qty += 1
         if qty == 0:
             return
@@ -153,4 +154,6 @@ def interleave(
             except EndOfInputError:
                 break
             else:
+                if not r.success:
+                    done_flag.set()
                 yield r.get()

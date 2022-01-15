@@ -74,13 +74,15 @@ def test_simple_error() -> None:
         (5, "This is not seen.", 1),
     ]
     threads = active_count()
-    it = interleave(sleeper(i, intervals) for i, intervals in enumerate(INTERVALS))
+    cb = MagicMock()
+    it = interleave(sleeper(i, intervals, cb) for i, intervals in enumerate(INTERVALS))
     for expected in [(0, 0), (0, 1), (1, 0), (0, 2), (1, 1)]:
         assert next(it) == expected
     with pytest.raises(RuntimeError) as excinfo:
         next(it)
     assert str(excinfo.value) == "This is an error."
     assert active_count() == threads
+    assert cb.call_args_list == [call(0), call(1)]
 
 
 def test_no_iterators() -> None:

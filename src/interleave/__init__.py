@@ -176,6 +176,7 @@ class Interleaver(Generic[T]):
         self._futures: List[Future[None]] = []
         self._done_flag = Event()
         self._error: Optional[Result[T]] = None
+        self._exhausted = False
 
     def _process(self, ctx: ContextManager[None], it: Iterator[T]) -> None:
         with ctx:
@@ -235,6 +236,8 @@ class Interleaver(Generic[T]):
         return self
 
     def __next__(self) -> T:
+        if self._exhausted:
+            raise StopIteration
         while True:
             try:
                 r = self._funnel.get()
@@ -255,6 +258,7 @@ class Interleaver(Generic[T]):
                         self._end()
 
     def _end(self) -> NoReturn:
+        self._exhausted = True
         self._pool.shutdown(wait=True)
         if self._error is not None:
             e, self._error = self._error, None

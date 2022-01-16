@@ -168,6 +168,10 @@ def test_error() -> None:
         assert next(it) == expected
     with pytest.raises(RuntimeError) as excinfo:
         next(it)
+    with pytest.raises(StopIteration):
+        next(it)
+    with pytest.raises(StopIteration):
+        next(it)
     assert str(excinfo.value) == "This is an error."
     assert active_count() == threads
     assert cb.call_args_list == [call(0), call(1)]
@@ -425,3 +429,20 @@ def test_with_early_break() -> None:
             assert next(it) == expected
     assert active_count() == threads
     assert cb.call_args_list == [call(0), call(1)]
+
+
+def test_extra_next() -> None:
+    INTERVALS = [
+        (0, 2),
+        (1, 2),
+    ]
+    threads = active_count()
+    it = interleave(sleeper(i, intervals) for i, intervals in enumerate(INTERVALS))
+    with it:
+        for expected in [(0, 0), (1, 0), (0, 1), (1, 1)]:
+            assert next(it) == expected
+        with pytest.raises(StopIteration):
+            next(it)
+        with pytest.raises(StopIteration):
+            next(it)
+        assert active_count() == threads

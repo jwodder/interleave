@@ -111,6 +111,7 @@ def test_shrinking_ragged() -> None:
         (2, 2, 3),
         (5, 3),
         (9,),
+        (),
     ]
     assert list(
         interleave(sleeper(i, intervals) for i, intervals in enumerate(INTERVALS))
@@ -130,6 +131,7 @@ def test_shrinking_ragged() -> None:
 
 def test_growing_ragged() -> None:
     INTERVALS = [
+        (),
         (0,),
         (1, 1),
         (3, 1, 2),
@@ -138,16 +140,16 @@ def test_growing_ragged() -> None:
     assert list(
         interleave(sleeper(i, intervals) for i, intervals in enumerate(INTERVALS))
     ) == [
-        (0, 0),
         (1, 0),
-        (1, 1),
         (2, 0),
         (2, 1),
         (3, 0),
-        (2, 2),
         (3, 1),
+        (4, 0),
         (3, 2),
-        (3, 3),
+        (4, 1),
+        (4, 2),
+        (4, 3),
     ]
 
 

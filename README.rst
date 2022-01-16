@@ -59,3 +59,68 @@ Example
 (1, 2)
 (2, 1)
 (2, 2)
+
+
+API
+===
+
+.. code:: python
+
+    interleave.interleave(
+        iterators: Iterable[Iterator[T]],
+        *,
+        max_workers: Optional[int] = None,
+        queue_size: Optional[int] = None,
+        onerror: interleave.OnError = interleave.STOP,
+    ) -> Iterator[T]
+
+``interleave()`` runs the given iterators in separate threads and yields the
+values yielded by them as they become available.
+
+The value of the ``max_workers`` parameter is passed through to the underlying
+|ThreadPoolExecutor|_ (See the Python documentation for the default value) and
+determines the maximum number of iterators to run at once.
+
+.. |ThreadPoolExecutor| replace:: ``concurrent.futures.ThreadPoolExecutor``
+.. _ThreadPoolExecutor:
+   https://docs.python.org/3/library/concurrent.futures.html
+   #concurrent.futures.ThreadPoolExecutor
+
+The ``queue_size`` parameter sets the maximum size of the queue used internally
+to pipe values yielded by the iterators; when the queue is full, any iterator
+with a value to yield will block waiting for the next value to be dequeued by
+a call to the interleaver's ``__next__``.
+
+When ``queue_size`` is ``None`` (the default), ``interleave()`` uses a
+``queue.SimpleQueue``, which has no maximum size.  When ``queue_size`` is
+non-``None`` (including zero, signifying no maximum size), ``interleave()``
+uses a ``queue.Queue``, whose ``get()`` method is uninterruptible (including by
+``KeyboardInterrupt``) on Windows.
+
+The ``onerror`` parameter is an enum that determines how ``interleave()``
+should behave if one of the iterators raises an exception.  The possible values
+are:
+
+``STOP``
+    *(default)* Stop iterating over all iterators, cancel any outstanding
+    threads, wait for all running threads to finish, and reraise the exception.
+    Note that, due to the inability to stop an iterator between yields, the
+    "waiting" step involves waiting for each currently-running iterator to
+    yield its next value before stopping.  This can deadlock if the queue fills
+    up in the interim.
+
+``DRAIN``
+    Like ``STOP``, but any remaining values yielded by the iterators before
+    they finish are yielded by the interleaver before raising the exception
+
+``FINISH_ALL``
+    Continue running as normal and reraise the exception once all iterators
+    have finished
+
+``FINISH_CURRENT``
+    Like ``FINISH_ALL``, except that only currently-running iterators are run
+    to completion; any iterators whose threads haven't yet been started when
+    the exception is raised will have their threads cancelled
+
+Regardless of the value of ``onerror``, any later exceptions raised by
+iterators after the initial exception are discarded.

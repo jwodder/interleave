@@ -94,11 +94,16 @@ class FunnelQueue(Generic[T]):
         else:
             self.queue = Queue(queue_size)
         self.producer_qty = 0
+        self.all_submitted = False
         self.lock = Lock()
         self.done_sentinel = object()
 
     def putting(self) -> ContextManager[None]:
         with self.lock:
+            if self.all_submitted:
+                raise ValueError(
+                    "Cannot submit new producers after end_submission() is called"
+                )
             self.producer_qty += 1
         return self._close_one()
 
@@ -109,8 +114,14 @@ class FunnelQueue(Generic[T]):
         finally:
             with self.lock:
                 self.producer_qty -= 1
-                if self.producer_qty == 0:
+                if self.producer_qty == 0 and self.all_submitted:
                     self.put(cast(T, self.done_sentinel))
+
+    def end_submission(self) -> None:
+        with self.lock:
+            self.all_submitted = True
+            if self.producer_qty == 0:
+                self.put(cast(T, self.done_sentinel))
 
     def put(self, value: T) -> None:
         self.queue.put(value)
@@ -146,16 +157,33 @@ def interleave(
                     funnel.put(Result(x))
 
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        # `funnel.putting()` needs to be called outside of the thread so that
-        # the producer count is at its correct value at the start, regardless
-        # of how many threads are or aren't running yet.  This matters in the
-        # case where an initial batch of threads have all finished but there
-        # are still pending threads yet to be started; when this happens, we
-        # don't want the last thread in the first batch to trigger an
-        # EndOfInputError.
+
+        # The funnel's producer count needs to be incremented outside of
+        # `process()` so that the increment happens immediately rather than
+        # being delayed until the thread actually starts.  Without this, if an
+        # initial batch of threads were to all register, finish, & unregister
+        # while all remaining threads had yet to be started, the funnel would
+        # then see that there were no producers left and assume that everything
+        # was finished, leading to a premature `EndOfInputError`.
+
         futures = [pool.submit(process, funnel.putting(), it) for it in iterators]
-        if not futures:
-            return
+
+        # Tell the funnel that all producers have been initialized and there
+        # will not be any more.  Without this, if the first producer was
+        # registered, finished, and unregistered before any further producers
+        # were registered (i.e., if the first `process()` thread ran &
+        # completed as soon as it was submitted, finishing before the second
+        # call to `funnel.putting()` even happened), the funnel would then see
+        # that there were no producers left and assume that everything was
+        # finished, leading to a premature `EndOfInputError`.
+
+        funnel.end_submission()
+
+        # (An alternative to this system would be to pass the total number of
+        # iterators/producers to the `FunnelQueue` constructor, but then we
+        # wouldn't be able to support submitting new iterators to the batch,
+        # which may or may not become an eventual feature.)
+
         while True:
             try:
                 r = funnel.get()

@@ -111,6 +111,7 @@ class FunnelQueue(Generic[T]):
         self.all_submitted = False
         self.lock = Lock()
         self.done_sentinel = object()
+        self.done = Event()
 
     def putting(self) -> ContextManager[None]:
         with self.lock:
@@ -119,10 +120,10 @@ class FunnelQueue(Generic[T]):
                     "Cannot submit new producers after finalize() is called"
                 )
             self.producer_qty += 1
-        return self._close_one()
+        return self._put_ctx()
 
     @contextmanager
-    def _close_one(self) -> Iterator[None]:
+    def _put_ctx(self) -> Iterator[None]:
         try:
             yield
         finally:
@@ -141,11 +142,16 @@ class FunnelQueue(Generic[T]):
                 self.put(cast(T, self.done_sentinel))
 
     def put(self, value: T) -> None:
+        if self.done.is_set():
+            raise ValueError("Funnel is closed for business")
         self.queue.put(value)
 
-    def get(self) -> T:
-        x = self.queue.get()
+    def get(self, block: bool = True, timeout: Optional[float] = None) -> T:
+        if self.done.is_set():
+            raise EndOfInputError()
+        x = self.queue.get(block=block, timeout=timeout)
         if x is self.done_sentinel:
+            self.done.set()
             raise EndOfInputError()
         else:
             return x

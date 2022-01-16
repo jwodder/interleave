@@ -6,7 +6,7 @@ from time import monotonic, sleep
 from typing import Any, Callable, Iterator, List, Optional, Sequence, Tuple, Union
 from unittest.mock import MagicMock, call
 import pytest
-from interleave import interleave
+from interleave import FINISH_CURRENT, interleave
 
 UNIT = 0.5
 
@@ -194,3 +194,35 @@ def test_error_sized_queue() -> None:
     assert str(excinfo.value) == "This is an error."
     assert active_count() == threads
     assert cb.call_args_list == [call(0), call(1)]
+
+
+def test_finish_current() -> None:
+    INTERVALS: List[Tuple[Union[int, str], ...]] = [
+        (0, 1, 2),
+        (2, 2, "This is an error."),
+        (5, 1, 3),
+        (8, "This error is discarded."),
+    ]
+    threads = active_count()
+    cb = MagicMock()
+    it = interleave(
+        [sleeper(i, intervals, cb) for i, intervals in enumerate(INTERVALS)],
+        onerror=FINISH_CURRENT,
+    )
+    for expected in [
+        (0, 0),
+        (0, 1),
+        (1, 0),
+        (0, 2),
+        (1, 1),
+        (2, 0),
+        (2, 1),
+        (3, 0),
+        (2, 2),
+    ]:
+        assert next(it) == expected
+    with pytest.raises(RuntimeError) as excinfo:
+        next(it)
+    assert str(excinfo.value) == "This is an error."
+    assert active_count() == threads
+    assert cb.call_args_list == [call(0), call(1), call(3), call(2)]

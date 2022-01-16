@@ -7,6 +7,7 @@ Visit <https://github.com/jwodder/interleave> for more information.
 from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
+from enum import Enum
 from queue import Queue, SimpleQueue
 import sys
 from threading import Event, Lock
@@ -35,11 +36,19 @@ __author_email__ = "interleave@varonathe.org"
 __license__ = "MIT"
 __url__ = "https://github.com/jwodder/interleave"
 
-__all__ = ["interleave"]
+__all__ = [
+    "FINISH_CURRENT",
+    "STOP",
+    "interleave",
+]
 
 ExcInfo = Tuple[Type[BaseException], BaseException, TracebackType]
 
 T = TypeVar("T")
+
+OnError = Enum("OnError", "STOP FINISH_CURRENT")
+STOP = OnError.STOP
+FINISH_CURRENT = OnError.FINISH_CURRENT
 
 
 class Result(Generic[T]):
@@ -139,6 +148,7 @@ def interleave(
     *,
     max_workers: Optional[int] = None,
     queue_size: Optional[int] = None,
+    onerror: OnError = STOP,
 ) -> Iterator[T]:
     funnel: FunnelQueue[Result[T]] = FunnelQueue(queue_size)
     done_flag = Event()
@@ -184,14 +194,22 @@ def interleave(
         # wouldn't be able to support submitting new iterators to the batch,
         # which may or may not become an eventual feature.)
 
+        error: Optional[Result[T]] = None
         while True:
             try:
                 r = funnel.get()
             except EndOfInputError:
                 break
             else:
-                if not r.success:
-                    done_flag.set()
+                if r.success:
+                    yield r.get()
+                elif error is None:
+                    error = r
                     for f in futures:
                         f.cancel()
-                yield r.get()
+                    if onerror is STOP:
+                        done_flag.set()
+                        break
+        if error is not None:
+            assert not error.success
+            error.get()

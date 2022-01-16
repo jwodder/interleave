@@ -38,6 +38,7 @@ __url__ = "https://github.com/jwodder/interleave"
 
 __all__ = [
     "FINISH_CURRENT",
+    "OnError",
     "STOP",
     "interleave",
 ]

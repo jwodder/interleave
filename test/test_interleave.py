@@ -226,3 +226,35 @@ def test_finish_current() -> None:
     assert str(excinfo.value) == "This is an error."
     assert active_count() == threads
     assert cb.call_args_list == [call(0), call(1), call(3), call(2)]
+
+
+def test_max_workers() -> None:
+    INTERVALS = [
+        (0, 1, 2, 3),
+        (2, 2),
+        (5, 3, 3),
+        (9, 3),
+        (3, 3),
+    ]
+    cb = MagicMock()
+    assert list(
+        interleave(
+            [sleeper(i, intervals, cb) for i, intervals in enumerate(INTERVALS)],
+            max_workers=4,
+        )
+    ) == [
+        (0, 0),
+        (0, 1),
+        (1, 0),
+        (0, 2),
+        (1, 1),
+        (2, 0),
+        (0, 3),
+        (4, 0),
+        (2, 1),
+        (3, 0),
+        (4, 1),
+        (2, 2),
+        (3, 1),
+    ]
+    assert cb.call_args_list == [call(1), call(0), call(4), call(2), call(3)]

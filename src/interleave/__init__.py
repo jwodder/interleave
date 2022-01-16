@@ -155,6 +155,7 @@ def interleave(
     iterators: Iterable[Iterator[T]],
     *,
     max_workers: Optional[int] = None,
+    thread_name_prefix: str = "",
     queue_size: Optional[int] = None,
     onerror: OnError = STOP,
 ) -> Iterator[T]:
@@ -177,7 +178,9 @@ def interleave(
                 else:
                     funnel.put(Result(x))
 
-    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+    with ThreadPoolExecutor(
+        max_workers=max_workers, thread_name_prefix=thread_name_prefix
+    ) as pool:
 
         # The funnel's producer count needs to be incremented outside of
         # `process()` so that the increment happens immediately rather than

@@ -70,6 +70,7 @@ API
         iterators: Iterable[Iterator[T]],
         *,
         max_workers: Optional[int] = None,
+        thread_name_prefix: str = "",
         queue_size: Optional[int] = None,
         onerror: interleave.OnError = interleave.STOP,
     ) -> Iterator[T]
@@ -77,9 +78,9 @@ API
 ``interleave()`` runs the given iterators in separate threads and yields the
 values yielded by them as they become available.
 
-The value of the ``max_workers`` parameter is passed through to the underlying
-|ThreadPoolExecutor|_ (See the Python documentation for the default value) and
-determines the maximum number of iterators to run at once.
+The ``max_workers`` and ``thread_name_prefix`` parameters are passed through to
+the underlying |ThreadPoolExecutor|_ (q.v.).  ``max_workers`` determines the
+maximum number of iterators to run at once.
 
 .. |ThreadPoolExecutor| replace:: ``concurrent.futures.ThreadPoolExecutor``
 .. _ThreadPoolExecutor:
@@ -88,14 +89,12 @@ determines the maximum number of iterators to run at once.
 
 The ``queue_size`` parameter sets the maximum size of the queue used internally
 to pipe values yielded by the iterators; when the queue is full, any iterator
-with a value to yield will block waiting for the next value to be dequeued by
-a call to the interleaver's ``__next__``.
-
-When ``queue_size`` is ``None`` (the default), ``interleave()`` uses a
-``queue.SimpleQueue``, which has no maximum size.  When ``queue_size`` is
-non-``None`` (including zero, signifying no maximum size), ``interleave()``
-uses a ``queue.Queue``, whose ``get()`` method is uninterruptible (including by
-``KeyboardInterrupt``) on Windows.
+with a value to yield will block waiting for the next value to be dequeued by a
+call to the interleaver's ``__next__``.  When ``queue_size`` is ``None`` (the
+default), ``interleave()`` uses a ``queue.SimpleQueue``, which has no maximum
+size.  When ``queue_size`` is non-``None`` (including zero, signifying no
+maximum size), ``interleave()`` uses a ``queue.Queue``, whose ``get()`` method
+is uninterruptible (including by ``KeyboardInterrupt``) on Windows.
 
 The ``onerror`` parameter is an enum that determines how ``interleave()``
 should behave if one of the iterators raises an exception.  The possible values

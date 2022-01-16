@@ -37,6 +37,7 @@ __license__ = "MIT"
 __url__ = "https://github.com/jwodder/interleave"
 
 __all__ = [
+    "FINISH_ALL",
     "FINISH_CURRENT",
     "OnError",
     "STOP",
@@ -47,9 +48,10 @@ ExcInfo = Tuple[Type[BaseException], BaseException, TracebackType]
 
 T = TypeVar("T")
 
-OnError = Enum("OnError", "STOP FINISH_CURRENT")
+OnError = Enum("OnError", "STOP FINISH_CURRENT FINISH_ALL")
 STOP = OnError.STOP
 FINISH_CURRENT = OnError.FINISH_CURRENT
+FINISH_ALL = OnError.FINISH_ALL
 
 
 class Result(Generic[T]):
@@ -212,9 +214,10 @@ def interleave(
                     yield r.get()
                 elif error is None:
                     error = r
-                    for f in futures:
-                        if f.cancel():
-                            funnel.decrement()
+                    if onerror is not FINISH_ALL:
+                        for f in futures:
+                            if f.cancel():
+                                funnel.decrement()
                     if onerror is STOP:
                         done_flag.set()
                         break

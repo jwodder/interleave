@@ -111,7 +111,7 @@ class FunnelQueue(Generic[T]):
         with self.lock:
             if self.all_submitted:
                 raise ValueError(
-                    "Cannot submit new producers after end_submission() is called"
+                    "Cannot submit new producers after finalize() is called"
                 )
             self.producer_qty += 1
         return self._close_one()
@@ -123,7 +123,7 @@ class FunnelQueue(Generic[T]):
         finally:
             self.decrement()
 
-    def end_submission(self) -> None:
+    def finalize(self) -> None:
         with self.lock:
             self.all_submitted = True
             if self.producer_qty == 0:
@@ -163,7 +163,10 @@ def interleave(
                     x = next(it)
                 except StopIteration:
                     return
-                except BaseException:
+                # According to various sources, only the main thread can
+                # receive a KeyboardInterrupt, so there's no point in trying to
+                # catch one here.
+                except Exception:
                     funnel.put(Result.for_exc())
                     return
                 else:
@@ -190,7 +193,7 @@ def interleave(
         # that there were no producers left and assume that everything was
         # finished, leading to a premature `EndOfInputError`.
 
-        funnel.end_submission()
+        funnel.finalize()
 
         # (An alternative to this system would be to pass the total number of
         # iterators/producers to the `FunnelQueue` constructor, but then we

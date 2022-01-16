@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, call
 import pytest
 from interleave import FINISH_CURRENT, interleave
 
-UNIT = 0.25
+UNIT = 0.35
 
 pytestmark = pytest.mark.flaky(reruns=5, condition="CI" in os.environ)
 

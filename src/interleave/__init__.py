@@ -121,15 +121,18 @@ class FunnelQueue(Generic[T]):
         try:
             yield
         finally:
-            with self.lock:
-                self.producer_qty -= 1
-                if self.producer_qty == 0 and self.all_submitted:
-                    self.put(cast(T, self.done_sentinel))
+            self.decrement()
 
     def end_submission(self) -> None:
         with self.lock:
             self.all_submitted = True
             if self.producer_qty == 0:
+                self.put(cast(T, self.done_sentinel))
+
+    def decrement(self) -> None:
+        with self.lock:
+            self.producer_qty -= 1
+            if self.producer_qty == 0 and self.all_submitted:
                 self.put(cast(T, self.done_sentinel))
 
     def put(self, value: T) -> None:
@@ -206,7 +209,8 @@ def interleave(
                 elif error is None:
                     error = r
                     for f in futures:
-                        f.cancel()
+                        if f.cancel():
+                            funnel.decrement()
                     if onerror is STOP:
                         done_flag.set()
                         break

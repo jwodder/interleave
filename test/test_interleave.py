@@ -236,6 +236,7 @@ def test_max_workers() -> None:
         (9, 3),
         (3, 3),
     ]
+    threads = active_count()
     cb = MagicMock()
     assert list(
         interleave(
@@ -257,4 +258,43 @@ def test_max_workers() -> None:
         (2, 2),
         (3, 1),
     ]
+    assert active_count() == threads
     assert cb.call_args_list == [call(1), call(0), call(4), call(2), call(3)]
+
+
+def test_finish_current_max_workers() -> None:
+    INTERVALS: List[Tuple[Union[int, str], ...]] = [
+        (0, 1, 2, "This is an error."),
+        (2, 2),
+        (5, 2, 3),
+        (8, 3),
+        (3, 3),
+        (0, 1, 2, 3),
+    ]
+    threads = active_count()
+    cb = MagicMock()
+    it = interleave(
+        [sleeper(i, intervals, cb) for i, intervals in enumerate(INTERVALS)],
+        max_workers=4,
+        onerror=FINISH_CURRENT,
+    )
+    for expected in [
+        (0, 0),
+        (0, 1),
+        (1, 0),
+        (0, 2),
+        (1, 1),
+        (2, 0),
+        (4, 0),
+        (2, 1),
+        (3, 0),
+        (4, 1),
+        (2, 2),
+        (3, 1),
+    ]:
+        assert next(it) == expected
+    with pytest.raises(RuntimeError) as excinfo:
+        next(it)
+    assert str(excinfo.value) == "This is an error."
+    assert active_count() == threads
+    assert cb.call_args_list == [call(0), call(1), call(4), call(2), call(3)]

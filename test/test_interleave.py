@@ -8,9 +8,11 @@ from unittest.mock import MagicMock, call
 import pytest
 from interleave import DRAIN, FINISH_ALL, FINISH_CURRENT, STOP, interleave
 
-UNIT = 0.35
+CI = "CI" in os.environ
 
-pytestmark = pytest.mark.flaky(reruns=5, condition="CI" in os.environ)
+UNIT = 1.0 if CI else 0.25
+
+pytestmark = pytest.mark.flaky(reruns=5, condition=CI)
 
 
 def sleeper(

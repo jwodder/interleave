@@ -10,6 +10,8 @@ from interleave import FINISH_CURRENT, interleave
 
 UNIT = 0.25
 
+pytestmark = pytest.mark.flaky(reruns=5, condition="CI" in os.environ)
+
 
 def sleeper(
     tid: int,
@@ -61,7 +63,6 @@ def test_simple() -> None:
     assert cb.call_args_list == [call(i) for i in range(len(INTERVALS))]
 
 
-@pytest.mark.flaky(reruns=5, condition="CI" in os.environ)
 def test_timing() -> None:
     INTERVALS = [
         (0, 1, 2),

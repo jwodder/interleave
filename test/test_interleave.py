@@ -104,6 +104,52 @@ def test_ragged() -> None:
     ]
 
 
+def test_shrinking_ragged() -> None:
+    INTERVALS = [
+        (0, 1, 2, 3),
+        (2, 2, 3),
+        (5, 3),
+        (9,),
+    ]
+    assert list(
+        interleave(sleeper(i, intervals) for i, intervals in enumerate(INTERVALS))
+    ) == [
+        (0, 0),
+        (0, 1),
+        (1, 0),
+        (0, 2),
+        (1, 1),
+        (2, 0),
+        (0, 3),
+        (1, 2),
+        (2, 1),
+        (3, 0),
+    ]
+
+
+def test_growing_ragged() -> None:
+    INTERVALS = [
+        (0,),
+        (1, 1),
+        (3, 1, 2),
+        (5, 2, 1, 1),
+    ]
+    assert list(
+        interleave(sleeper(i, intervals) for i, intervals in enumerate(INTERVALS))
+    ) == [
+        (0, 0),
+        (1, 0),
+        (1, 1),
+        (2, 0),
+        (2, 1),
+        (3, 0),
+        (2, 2),
+        (3, 1),
+        (3, 2),
+        (3, 3),
+    ]
+
+
 def test_error() -> None:
     INTERVALS: List[Tuple[Union[int, str], ...]] = [
         (0, 1, 2),

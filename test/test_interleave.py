@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, call
 import pytest
 from interleave import FINISH_CURRENT, interleave
 
-UNIT = 0.5
+UNIT = 0.25
 
 
 def sleeper(

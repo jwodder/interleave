@@ -384,3 +384,44 @@ def test_stop() -> None:
     assert str(excinfo.value) == "This is an error."
     assert active_count() == threads
     assert cb.call_args_list == [call(1)]
+
+
+def test_with() -> None:
+    INTERVALS = [
+        (0, 1, 2),
+        (2, 2, 2),
+        (5, 2, 1),
+    ]
+    threads = active_count()
+    cb = MagicMock()
+    it = interleave(sleeper(i, intervals, cb) for i, intervals in enumerate(INTERVALS))
+    with it:
+        assert list(it) == [
+            (0, 0),
+            (0, 1),
+            (1, 0),
+            (0, 2),
+            (1, 1),
+            (2, 0),
+            (1, 2),
+            (2, 1),
+            (2, 2),
+        ]
+    assert active_count() == threads
+    assert cb.call_args_list == [call(0), call(1), call(2)]
+
+
+def test_with_early_break() -> None:
+    INTERVALS = [
+        (0, 1, 2),
+        (2, 2, 2),
+        (5, 2, 1),
+    ]
+    threads = active_count()
+    cb = MagicMock()
+    it = interleave(sleeper(i, intervals, cb) for i, intervals in enumerate(INTERVALS))
+    with it:
+        for expected in [(0, 0), (0, 1), (1, 0), (0, 2), (1, 1), (2, 0), (1, 2)]:
+            assert next(it) == expected
+    assert active_count() == threads
+    assert cb.call_args_list == [call(0), call(1)]

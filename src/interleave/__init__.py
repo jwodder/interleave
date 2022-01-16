@@ -5,7 +5,7 @@ Visit <https://github.com/jwodder/interleave> for more information.
 """
 
 from __future__ import annotations
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import contextmanager
 from enum import Enum
 from queue import Queue, SimpleQueue
@@ -18,6 +18,8 @@ from typing import (
     Generic,
     Iterable,
     Iterator,
+    List,
+    NoReturn,
     Optional,
     Tuple,
     Type,
@@ -40,6 +42,7 @@ __all__ = [
     "DRAIN",
     "FINISH_ALL",
     "FINISH_CURRENT",
+    "Interleaver",
     "OnError",
     "STOP",
     "interleave",
@@ -157,20 +160,26 @@ class FunnelQueue(Generic[T]):
             return x
 
 
-def interleave(
-    iterators: Iterable[Iterator[T]],
-    *,
-    max_workers: Optional[int] = None,
-    thread_name_prefix: str = "",
-    queue_size: Optional[int] = None,
-    onerror: OnError = STOP,
-) -> Iterator[T]:
-    funnel: FunnelQueue[Result[T]] = FunnelQueue(queue_size)
-    done_flag = Event()
+class Interleaver(Generic[T]):
+    def __init__(
+        self,
+        max_workers: Optional[int] = None,
+        thread_name_prefix: str = "",
+        queue_size: Optional[int] = None,
+        onerror: OnError = STOP,
+    ):
+        self._funnel: FunnelQueue[Result[T]] = FunnelQueue(queue_size)
+        self._pool = ThreadPoolExecutor(
+            max_workers=max_workers, thread_name_prefix=thread_name_prefix
+        )
+        self._onerror = onerror
+        self._futures: List[Future[None]] = []
+        self._done_flag = Event()
+        self._error: Optional[Result[T]] = None
 
-    def process(ctx: ContextManager[None], it: Iterator[T]) -> None:
+    def _process(self, ctx: ContextManager[None], it: Iterator[T]) -> None:
         with ctx:
-            while not done_flag.is_set():
+            while not self._done_flag.is_set():
                 try:
                     x = next(it)
                 except StopIteration:
@@ -179,60 +188,104 @@ def interleave(
                 # receive a KeyboardInterrupt, so there's no point in trying to
                 # catch one here.
                 except Exception:
-                    funnel.put(Result.for_exc())
+                    self._funnel.put(Result.for_exc())
                     return
                 else:
-                    funnel.put(Result(x))
+                    self._funnel.put(Result(x))
 
-    with ThreadPoolExecutor(
-        max_workers=max_workers, thread_name_prefix=thread_name_prefix
-    ) as pool:
-
+    def _submit(self, it: Iterator[T]) -> None:
         # The funnel's producer count needs to be incremented outside of
-        # `process()` so that the increment happens immediately rather than
+        # `_process()` so that the increment happens immediately rather than
         # being delayed until the thread actually starts.  Without this, if an
         # initial batch of threads were to all register, finish, & unregister
         # while all remaining threads had yet to be started, the funnel would
         # then see that there were no producers left and assume that everything
         # was finished, leading to a premature `EndOfInputError`.
+        self._futures.append(
+            self._pool.submit(self._process, self._funnel.putting(), it)
+        )
 
-        futures = [pool.submit(process, funnel.putting(), it) for it in iterators]
-
+    def _finalize(self) -> None:
         # Tell the funnel that all producers have been initialized and there
         # will not be any more.  Without this, if the first producer was
         # registered, finished, and unregistered before any further producers
-        # were registered (i.e., if the first `process()` thread ran &
+        # were registered (i.e., if the first `_process()` thread ran &
         # completed as soon as it was submitted, finishing before the second
-        # call to `funnel.putting()` even happened), the funnel would then see
+        # call to `_funnel.putting()` even happened), the funnel would then see
         # that there were no producers left and assume that everything was
         # finished, leading to a premature `EndOfInputError`.
-
-        funnel.finalize()
-
+        self._funnel.finalize()
         # (An alternative to this system would be to pass the total number of
         # iterators/producers to the `FunnelQueue` constructor, but then we
         # wouldn't be able to support submitting new iterators to the batch,
         # which may or may not become an eventual feature.)
 
-        error: Optional[Result[T]] = None
+    def __enter__(self) -> Interleaver[T]:
+        return self
+
+    def __exit__(
+        self,
+        _exc_type: Optional[Type[BaseException]],
+        _exc_val: Optional[BaseException],
+        _exc_tb: Optional[TracebackType],
+    ) -> None:
+        self.shutdown(wait=True)
+
+    def __iter__(self) -> Iterator[T]:
+        return self
+
+    def __next__(self) -> T:
         while True:
             try:
-                r = funnel.get()
+                r = self._funnel.get()
             except EndOfInputError:
-                break
+                self._end()
             else:
                 if r.success:
-                    yield r.get()
-                elif error is None:
-                    error = r
-                    if onerror is not FINISH_ALL:
-                        for f in futures:
+                    return r.get()
+                elif self._error is None:
+                    self._error = r
+                    if self._onerror is not FINISH_ALL:
+                        for f in self._futures:
                             if f.cancel():
-                                funnel.decrement()
-                    if onerror in (STOP, DRAIN):
-                        done_flag.set()
-                    if onerror is STOP:
-                        break
-        if error is not None:
-            assert not error.success
-            error.get()
+                                self._funnel.decrement()
+                    if self._onerror in (STOP, DRAIN):
+                        self._done_flag.set()
+                    if self._onerror is STOP:
+                        self._end()
+
+    def _end(self) -> NoReturn:
+        self._pool.shutdown(wait=True)
+        if self._error is not None:
+            e, self._error = self._error, None
+            assert not e.success
+            e.get()
+            raise AssertionError("Unreachable")  # pragma: no cover
+        raise StopIteration
+
+    def shutdown(self, wait: bool = True) -> None:
+        self._done_flag.set()
+        for f in self._futures:
+            if f.cancel():
+                self._funnel.decrement()
+        self._pool.shutdown(wait=wait)
+
+
+def interleave(
+    iterators: Iterable[Iterator[T]],
+    *,
+    max_workers: Optional[int] = None,
+    thread_name_prefix: str = "",
+    queue_size: Optional[int] = None,
+    onerror: OnError = STOP,
+) -> Interleaver[T]:
+    ilvr: Interleaver[T] = Interleaver(
+        max_workers=max_workers,
+        thread_name_prefix=thread_name_prefix,
+        queue_size=queue_size,
+        onerror=onerror,
+    )
+    for it in iterators:
+        ilvr._submit(it)
+    ilvr._finalize()
+    return ilvr

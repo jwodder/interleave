@@ -1,6 +1,10 @@
 from itertools import count
 from math import isclose
 import os
+from pathlib import Path
+from signal import SIGINT
+from subprocess import PIPE, Popen
+import sys
 from threading import active_count
 from time import monotonic, sleep
 from typing import Any, Callable, Iterator, List, Optional, Sequence, Tuple, Union
@@ -541,3 +545,21 @@ def test_shutdown_in_with() -> None:
         assert active_count() == threads
     assert active_count() == threads
     assert cb.call_args_list == [call(0)]
+
+
+def test_ctrl_c() -> None:
+    SCRIPT = Path(__file__).with_name("data") / "script.py"
+    with Popen(
+        [sys.executable, "-u", str(SCRIPT)],
+        stdout=PIPE,
+        universal_newlines=True,
+        bufsize=1,
+    ) as p:
+        assert p.stdout is not None
+        for expected in [(0, 0), (0, 1), (1, 0), (0, 2), (1, 1)]:
+            assert p.stdout.readline() == f"{expected}\n"
+        p.send_signal(SIGINT)
+        r = p.wait(3 * UNIT)
+        assert p.stdout.read() == ""
+    if os.name == "posix":
+        assert r == -SIGINT

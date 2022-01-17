@@ -248,12 +248,7 @@ class Interleaver(Generic[T]):
                     return r.get()
                 elif self._error is None:
                     self._error = r
-                    if self._onerror is not FINISH_ALL:
-                        for f in self._futures:
-                            if f.cancel():
-                                self._funnel.decrement()
-                    if self._onerror in (STOP, DRAIN):
-                        self._done_flag.set()
+                    self.shutdown(wait=False, _mode=self._onerror)
                     if self._onerror is STOP:
                         self._end()
 
@@ -267,11 +262,13 @@ class Interleaver(Generic[T]):
             raise AssertionError("Unreachable")  # pragma: no cover
         raise StopIteration
 
-    def shutdown(self, wait: bool = True) -> None:
-        self._done_flag.set()
-        for f in self._futures:
-            if f.cancel():
-                self._funnel.decrement()
+    def shutdown(self, wait: bool = True, *, _mode: OnError = STOP) -> None:
+        if _mode in (STOP, DRAIN):
+            self._done_flag.set()
+        if _mode is not FINISH_ALL:
+            for f in self._futures:
+                if f.cancel():
+                    self._funnel.decrement()
         self._pool.shutdown(wait=wait)
 
 

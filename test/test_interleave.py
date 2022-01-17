@@ -446,3 +446,98 @@ def test_extra_next() -> None:
         with pytest.raises(StopIteration):
             next(it)
         assert active_count() == threads
+
+
+def test_shutdown_after_exhaustion() -> None:
+    INTERVALS = [
+        (0, 2),
+        (1, 2),
+    ]
+    threads = active_count()
+    it = interleave(sleeper(i, intervals) for i, intervals in enumerate(INTERVALS))
+    for expected in [(0, 0), (1, 0), (0, 1), (1, 1)]:
+        assert next(it) == expected
+    with pytest.raises(StopIteration):
+        next(it)
+    assert active_count() == threads
+    it.shutdown()
+    with pytest.raises(StopIteration):
+        next(it)
+    assert active_count() == threads
+
+
+def test_shutdown_after_error() -> None:
+    INTERVALS: List[Tuple[Union[int, str], ...]] = [
+        (0, 1, 2, 3, 1),
+        (2, 2, "This is an error."),
+        (5, 3),
+    ]
+    threads = active_count()
+    it = interleave(sleeper(i, intervals) for i, intervals in enumerate(INTERVALS))
+    for expected in [(0, 0), (0, 1), (1, 0), (0, 2), (1, 1)]:
+        assert next(it) == expected
+    with pytest.raises(RuntimeError) as excinfo:
+        next(it)
+    assert str(excinfo.value) == "This is an error."
+    assert active_count() == threads
+    it.shutdown()
+    with pytest.raises(StopIteration):
+        next(it)
+    assert active_count() == threads
+
+
+def test_shutdown_and_continue() -> None:
+    INTERVALS = [
+        (0, 1, 2),
+        (2, 2, 2),
+        (5, 2, 1),
+    ]
+    threads = active_count()
+    cb = MagicMock()
+    it = interleave(sleeper(i, intervals, cb) for i, intervals in enumerate(INTERVALS))
+    for expected in [(0, 0), (0, 1), (1, 0), (0, 2), (1, 1)]:
+        assert next(it) == expected
+    it.shutdown()
+    assert active_count() == threads
+    assert list(it) == [(2, 0), (1, 2)]
+    assert cb.call_args_list == [call(0)]
+
+
+def test_shutdown_while_pending() -> None:
+    INTERVALS = [
+        (0, 1, 2, 3),
+        (2, 2, 3, 3),
+        (5, 3, 3),
+        (9, 3),
+        (1, 1, 1),
+    ]
+    threads = active_count()
+    cb = MagicMock()
+    it = interleave(
+        [sleeper(i, intervals, cb) for i, intervals in enumerate(INTERVALS)],
+        max_workers=4,
+    )
+    for expected in [(0, 0), (0, 1), (1, 0), (0, 2), (1, 1)]:
+        assert next(it) == expected
+    it.shutdown()
+    assert active_count() == threads
+    assert list(it) == [(2, 0), (0, 3), (1, 2), (3, 0)]
+    assert cb.call_args_list == []
+
+
+def test_shutdown_in_with() -> None:
+    INTERVALS = [
+        (0, 1, 2),
+        (2, 2, 2),
+        (5, 2, 1),
+    ]
+    threads = active_count()
+    cb = MagicMock()
+    it = interleave(sleeper(i, intervals, cb) for i, intervals in enumerate(INTERVALS))
+    with it:
+        for expected in [(0, 0), (0, 1), (1, 0), (0, 2), (1, 1)]:
+            assert next(it) == expected
+        it.shutdown()
+        assert active_count() == threads
+    assert active_count() == threads
+    assert cb.call_args_list == [call(0)]

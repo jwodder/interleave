@@ -19,7 +19,7 @@
 
 The ``interleave`` package provides a function of the same name that takes a
 number of iterators, runs them in separate threads, and yields the values
-produced as soon as each one is available.  It is currently a work in progress.
+produced as soon as each one is available.
 
 Installation
 ============

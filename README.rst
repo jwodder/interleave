@@ -157,3 +157,7 @@ Tell all running iterators to stop iterating, cancel any outstanding iterators
 that haven't been started yet, and shut down the ``ThreadPoolExecutor``.  The
 ``wait`` parameter is passed through to the call to
 ``ThreadPoolExecutor.shutdown()``.
+
+The ``Interleaver`` can continue to be iterated over after calling
+``shutdown()`` and will yield any remaining values produced by the iterators
+before they stopped completely.

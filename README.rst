@@ -1,7 +1,7 @@
-.. image:: http://www.repostatus.org/badges/latest/wip.svg
-    :target: http://www.repostatus.org/#wip
-    :alt: Project Status: WIP — Initial development is in progress, but there
-          has not yet been a stable, usable release suitable for the public.
+.. image:: http://www.repostatus.org/badges/latest/active.svg
+    :target: http://www.repostatus.org/#active
+    :alt: Project Status: Active — The project has reached a stable, usable
+          state and is being actively developed.
 
 .. image:: https://github.com/jwodder/interleave/workflows/Test/badge.svg?branch=master
     :target: https://github.com/jwodder/interleave/actions?workflow=Test
@@ -10,11 +10,15 @@
 .. image:: https://codecov.io/gh/jwodder/interleave/branch/master/graph/badge.svg
     :target: https://codecov.io/gh/jwodder/interleave
 
+.. image:: https://img.shields.io/pypi/pyversions/interleave.svg
+    :target: https://pypi.org/project/interleave/
+
 .. image:: https://img.shields.io/github/license/jwodder/interleave.svg
     :target: https://opensource.org/licenses/MIT
     :alt: MIT License
 
 `GitHub <https://github.com/jwodder/interleave>`_
+| `PyPI <https://pypi.org/project/interleave/>`_
 | `Issues <https://github.com/jwodder/interleave/issues>`_
 
 The ``interleave`` package provides a function of the same name that takes a
@@ -27,7 +31,7 @@ Installation
 <https://pip.pypa.io>`_ for Python 3 (You have pip, right?) to install
 ``interleave`` and its dependencies::
 
-    python3 -m pip install git+https://github.com/jwodder/interleave.git
+    python3 -m pip install interleave
 
 
 Example

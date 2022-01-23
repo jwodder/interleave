@@ -17,6 +17,7 @@ import sys
 from threading import Event, Lock
 from types import TracebackType
 from typing import (
+    TYPE_CHECKING,
     Any,
     ContextManager,
     Generic,
@@ -31,12 +32,7 @@ from typing import (
     cast,
 )
 
-if sys.version_info[:2] >= (3, 8):
-    from typing import Protocol
-else:
-    from typing_extensions import Protocol
-
-__version__ = "0.1.0"
+__version__ = "0.1.1.dev1"
 __author__ = "John Thorvald Wodder II"
 __author_email__ = "interleave@varonathe.org"
 __license__ = "MIT"
@@ -61,6 +57,26 @@ STOP = OnError.STOP
 DRAIN = OnError.DRAIN
 FINISH_CURRENT = OnError.FINISH_CURRENT
 FINISH_ALL = OnError.FINISH_ALL
+
+if TYPE_CHECKING:
+    if sys.version_info[:2] >= (3, 8):
+        from typing import Protocol
+    else:
+        from typing_extensions import Protocol
+
+    class QueueProto(Protocol, Generic[T]):
+        """
+        Protocol for the behavior shared by `queue.Queue` and
+        `queue.SimpleQueue` that is of relevance to this package
+        """
+
+        def get(self, block: bool = ..., timeout: Optional[float] = ...) -> T:
+            ...
+
+        def put(
+            self, item: T, block: bool = ..., timeout: Optional[float] = ...
+        ) -> None:
+            ...
 
 
 class Result(Generic[T]):
@@ -101,19 +117,6 @@ class Result(Generic[T]):
         assert e is not None
         assert tb is not None
         return cls(exc_info=(etype, e, tb))
-
-
-class QueueProto(Protocol, Generic[T]):
-    """
-    Protocol for the behavior shared by `queue.Queue` and `queue.SimpleQueue`
-    that is of relevance to this package
-    """
-
-    def get(self, block: bool = ..., timeout: Optional[float] = ...) -> T:
-        ...
-
-    def put(self, item: T, block: bool = ..., timeout: Optional[float] = ...) -> None:
-        ...
 
 
 class EndOfInputError(Exception):

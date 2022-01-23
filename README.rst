@@ -20,6 +20,7 @@
 `GitHub <https://github.com/jwodder/interleave>`_
 | `PyPI <https://pypi.org/project/interleave/>`_
 | `Issues <https://github.com/jwodder/interleave/issues>`_
+| `Changelog <https://github.com/jwodder/interleave/blob/master/CHANGELOG.md>`_
 
 The ``interleave`` package provides a function of the same name that takes a
 number of iterators, runs them in separate threads, and yields the values

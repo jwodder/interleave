@@ -38,7 +38,7 @@ Installation
 Example
 =======
 
->>> from time import sleep
+>>> from time import sleep, strftime
 >>> from interleave import interleave
 >>>
 >>> def sleeper(idno, delays):
@@ -54,17 +54,17 @@ Example
 ...     ]
 ... ) as it:
 ...     for x in it:
-...         print(x)
+...         print(strftime("%H:%M:%S"), x)
 ...
-(0, 0)
-(0, 1)
-(1, 0)
-(0, 2)
-(1, 1)
-(2, 0)
-(1, 2)
-(2, 1)
-(2, 2)
+22:08:39 (0, 0)
+22:08:40 (0, 1)
+22:08:41 (1, 0)
+22:08:42 (0, 2)
+22:08:43 (1, 1)
+22:08:44 (2, 0)
+22:08:45 (1, 2)
+22:08:46 (2, 1)
+22:08:47 (2, 2)
 
 
 API

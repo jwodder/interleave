@@ -14,7 +14,7 @@ from contextlib import contextmanager
 from enum import Enum
 from queue import Queue, SimpleQueue
 import sys
-from threading import Event, Lock
+from threading import Lock
 from types import TracebackType
 from typing import (
     TYPE_CHECKING,
@@ -32,7 +32,7 @@ from typing import (
     cast,
 )
 
-__version__ = "0.1.1"
+__version__ = "0.2.0.dev1"
 __author__ = "John Thorvald Wodder II"
 __author_email__ = "interleave@varonathe.org"
 __license__ = "MIT"
@@ -159,7 +159,7 @@ class FunnelQueue(Generic[T]):
         self.all_submitted = False
         self.lock = Lock()
         self.done_sentinel = object()
-        self.done = Event()
+        self.done = False
 
     def putting(self) -> ContextManager[None]:
         """
@@ -205,16 +205,16 @@ class FunnelQueue(Generic[T]):
                 self.put(cast(T, self.done_sentinel))
 
     def put(self, value: T) -> None:
-        if self.done.is_set():
+        if self.done:
             raise ValueError("Funnel is closed for business")
         self.queue.put(value)
 
     def get(self, block: bool = True, timeout: Optional[float] = None) -> T:
-        if self.done.is_set():
+        if self.done:
             raise EndOfInputError()
         x = self.queue.get(block=block, timeout=timeout)
         if x is self.done_sentinel:
-            self.done.set()
+            self.done = True
             raise EndOfInputError()
         else:
             return x
@@ -252,13 +252,13 @@ class Interleaver(Generic[T]):
         )
         self._onerror = onerror
         self._futures: List[Future[None]] = []
-        self._done_flag = Event()
+        self._done_flag = False
         self._error: Optional[Result[T]] = None
         self._exhausted = False
 
     def _process(self, ctx: ContextManager[None], it: Iterator[T]) -> None:
         with ctx:
-            while not self._done_flag.is_set():
+            while not self._done_flag:
                 try:
                     x = next(it)
                 except StopIteration:
@@ -352,7 +352,7 @@ class Interleaver(Generic[T]):
         iterators before they stopped completely.
         """
         if _mode in (STOP, DRAIN):
-            self._done_flag.set()
+            self._done_flag = True
         if _mode is not FINISH_ALL:
             for f in self._futures:
                 if f.cancel():

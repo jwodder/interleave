@@ -286,31 +286,31 @@ def test_finish_current_max_workers() -> None:
     ]
     threads = active_count()
     cb = MagicMock()
-    it = interleave(
+    with interleave(
         [sleeper(i, intervals, cb) for i, intervals in enumerate(INTERVALS)],
         max_workers=4,
         onerror=FINISH_CURRENT,
-    )
-    for expected in [
-        (0, 0),
-        (0, 1),
-        (1, 0),
-        (0, 2),
-        (1, 1),
-        (2, 0),
-        (4, 0),
-        (2, 1),
-        (3, 0),
-        (4, 1),
-        (2, 2),
-        (3, 1),
-    ]:
-        assert next(it) == expected
-    with pytest.raises(RuntimeError) as excinfo:
-        next(it)
-    assert str(excinfo.value) == "This is an error."
-    assert active_count() == threads
-    assert cb.call_args_list == [call(0), call(1), call(4), call(2), call(3)]
+    ) as it:
+        for expected in [
+            (0, 0),
+            (0, 1),
+            (1, 0),
+            (0, 2),
+            (1, 1),
+            (2, 0),
+            (4, 0),
+            (2, 1),
+            (3, 0),
+            (4, 1),
+            (2, 2),
+            (3, 1),
+        ]:
+            assert next(it) == expected
+        with pytest.raises(RuntimeError) as excinfo:
+            next(it)
+        assert str(excinfo.value) == "This is an error."
+        assert active_count() == threads
+        assert cb.call_args_list == [call(0), call(1), call(4), call(2), call(3)]
 
 
 def test_finish_all_max_workers() -> None:

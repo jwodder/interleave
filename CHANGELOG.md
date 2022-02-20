@@ -1,5 +1,5 @@
-v0.2.0 (in development)
------------------------
+v0.2.0 (2022-02-20)
+-------------------
 - Added an `Interleaver.get(block, timeout)` method
 - Made the `Interleaver` constructor public and added `submit(iterator)` and
   `finalize()` methods

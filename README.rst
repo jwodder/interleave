@@ -133,7 +133,7 @@ iterators after the initial exception are discarded.
 
 .. code:: python
 
-    class Interleaver(Generic[T])
+    class Interleaver(Generic[T]):
         def __init__(
             self,
             max_workers: Optional[int] = None,
@@ -149,7 +149,7 @@ on exit, cleans up any unfinished threads by calling the
 ``shutdown(wait=True)`` method (see below).
 
 An ``Interleaver`` can be instantiated either by calling ``interleave()`` or by
-using the constructor directly.  The constructor takes the same arguments as
+calling the constructor directly.  The constructor takes the same arguments as
 ``interleave()``, minus ``iterators``, and produces a new ``Interleaver`` that
 is not yet running any iterators.  Iterators are submitted to a new
 ``Interleaver`` via the ``submit()`` method; once all desired iterators have
@@ -171,7 +171,7 @@ following public methods:
 
 .. code:: python
 
-    Interleaver.submit(it: Iterator[T]) -> None:
+    Interleaver.submit(it: Iterator[T]) -> None
 
 *New in version 0.2.0*
 

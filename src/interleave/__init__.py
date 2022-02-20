@@ -234,7 +234,7 @@ class Interleaver(Generic[T]):
     ``shutdown(wait=True)`` method (see below).
 
     An `Interleaver` can be instantiated either by calling `interleave()` or by
-    using the constructor directly.  The constructor takes the same arguments
+    calling the constructor directly.  The constructor takes the same arguments
     as `interleave()`, minus ``iterators``, and produces a new `Interleaver`
     that is not yet running any iterators.  Iterators are submitted to a new
     `Interleaver` via the `submit()` method; once all desired iterators have

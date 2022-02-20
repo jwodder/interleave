@@ -2,6 +2,7 @@ from itertools import count
 from math import isclose
 import os
 from pathlib import Path
+from queue import Empty
 from signal import SIGINT
 from subprocess import PIPE, Popen
 import sys
@@ -10,7 +11,14 @@ from time import monotonic, sleep
 from typing import Any, Callable, Iterator, List, Optional, Sequence, Tuple, Union
 from unittest.mock import MagicMock, call
 import pytest
-from interleave import DRAIN, FINISH_ALL, FINISH_CURRENT, STOP, interleave
+from interleave import (
+    DRAIN,
+    FINISH_ALL,
+    FINISH_CURRENT,
+    STOP,
+    EndOfInputError,
+    interleave,
+)
 
 CI = "CI" in os.environ
 
@@ -566,3 +574,93 @@ def test_ctrl_c() -> None:
         # For some reason, the script exits with rc 1 instead of -SIGINT on
         # Python 3.7.
         assert r == -SIGINT
+
+
+def test_get_stop() -> None:
+    INTERVALS: List[Tuple[Union[int, str], ...]] = [
+        (0, 1, 2),
+        (2, 2, "This is an error.", "This is not raised."),
+        (5, "This is not seen.", 1),
+    ]
+    threads = active_count()
+    cb = MagicMock()
+    with interleave(
+        sleeper(i, intervals, cb) for i, intervals in enumerate(INTERVALS)
+    ) as it:
+        assert it.get() == (0, 0)
+        with pytest.raises(Empty):
+            it.get(block=False)
+        t0 = monotonic()
+        with pytest.raises(Empty):
+            it.get(timeout=0.4 * UNIT)
+        t1 = monotonic()
+        assert isclose(t1 - t0, 0.4 * UNIT, rel_tol=0.3, abs_tol=0.1)
+        assert it.get() == (0, 1)
+        t2 = monotonic()
+        assert isclose(t2 - t1, 0.6 * UNIT, rel_tol=0.3, abs_tol=0.1)
+        with pytest.raises(Empty):
+            it.get(block=False)
+        sleep(UNIT * 1.2)
+        assert it.get(block=False) == (1, 0)
+        for expected in [(0, 2), (1, 1)]:
+            assert it.get() == expected
+        with pytest.raises(RuntimeError) as excinfo:
+            it.get()
+        with pytest.raises(EndOfInputError):
+            it.get(block=False)
+        with pytest.raises(EndOfInputError):
+            it.get(block=False)
+        assert str(excinfo.value) == "This is an error."
+        assert active_count() == threads
+        assert cb.call_args_list == [call(0), call(1)]
+
+
+def test_get_finish_all() -> None:
+    INTERVALS: List[Tuple[Union[int, str], ...]] = [
+        (0, 1, 2, 3),
+        (2, 2, "This is an error."),
+        (5, "This error will be swallowed."),
+    ]
+    threads = active_count()
+    cb = MagicMock()
+    with interleave(
+        [sleeper(i, intervals, cb) for i, intervals in enumerate(INTERVALS)],
+        onerror=FINISH_ALL,
+    ) as it:
+        assert it.get() == (0, 0)
+        with pytest.raises(Empty):
+            it.get(block=False)
+        t0 = monotonic()
+        with pytest.raises(Empty):
+            it.get(timeout=0.4 * UNIT)
+        t1 = monotonic()
+        assert isclose(t1 - t0, 0.4 * UNIT, rel_tol=0.3, abs_tol=0.1)
+        assert it.get() == (0, 1)
+        t2 = monotonic()
+        assert isclose(t2 - t1, 0.6 * UNIT, rel_tol=0.3, abs_tol=0.1)
+        with pytest.raises(Empty):
+            it.get(block=False)
+        sleep(UNIT * 1.2)
+        assert it.get(block=False) == (1, 0)
+        for expected in [(0, 2), (1, 1)]:
+            assert it.get() == expected
+        sleep(UNIT * 0.7)
+        with pytest.raises(Empty):
+            it.get(block=False)
+        t0 = monotonic()
+        assert it.get(timeout=UNIT) == (2, 0)
+        t1 = monotonic()
+        assert isclose(t1 - t0, 0.3 * UNIT, rel_tol=0.3, abs_tol=0.1)
+        sleep(UNIT * 0.2)
+        t0 = monotonic()
+        assert it.get(timeout=UNIT) == (0, 3)
+        t1 = monotonic()
+        assert isclose(t1 - t0, 0.8 * UNIT, rel_tol=0.3, abs_tol=0.1)
+        with pytest.raises(RuntimeError) as excinfo:
+            it.get()
+        with pytest.raises(EndOfInputError):
+            it.get(block=False)
+        with pytest.raises(EndOfInputError):
+            it.get(block=False)
+        assert str(excinfo.value) == "This is an error."
+        assert active_count() == threads

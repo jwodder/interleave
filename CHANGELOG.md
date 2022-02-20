@@ -1,3 +1,7 @@
+v0.2.0 (in development)
+-----------------------
+- Added an `Interleaver.get(block, timeout)` method
+
 v0.1.1 (2022-01-22)
 -------------------
 - Remove `typing-extensions` as a runtime dependency

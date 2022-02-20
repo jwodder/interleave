@@ -87,7 +87,9 @@ class Result(Generic[T]):
     exception
     """
 
-    def __init__(self, value: Optional[T] = None, exc_info: Optional[ExcInfo] = None):
+    def __init__(
+        self, value: Optional[T] = None, exc_info: Optional[ExcInfo] = None
+    ) -> None:
         self.value = value
         self.exc_info = exc_info
 
@@ -192,9 +194,10 @@ class FunnelQueue(Generic[T]):
         Calling `putting()` after this will result in a `ValueError`.
         """
         with self.lock:
-            self.all_submitted = True
-            if self.producer_qty == 0:
-                self.put(cast(T, self.done_sentinel))
+            if not self.all_submitted:
+                self.all_submitted = True
+                if self.producer_qty == 0:
+                    self.put(cast(T, self.done_sentinel))
 
     def decrement(self) -> None:
         """
@@ -230,13 +233,21 @@ class Interleaver(Generic[T]):
     and, on exit, cleans up any unfinished threads by calling the
     ``shutdown(wait=True)`` method (see below).
 
+    An `Interleaver` can be instantiated either by calling `interleave()` or by
+    using the constructor directly.  The constructor takes the same arguments
+    as `interleave()`, minus ``iterators``, and produces a new `Interleaver`
+    that is not yet running any iterators.  Iterators are submitted to a new
+    `Interleaver` via the `submit()` method; once all desired iterators have
+    been submitted, the `finalize()` method **must** be called so that the
+    `Interleaver` can tell when everything's finished.
+
     An `Interleaver` will shut down its `ThreadPoolExecutor` and wait for the
     threads to finish after yielding its final value (specifically, when a call
-    is made to ``__next__`` that would result in `StopIteration` or another
-    exception being raised).  In the event that an `Interleaver` is abandoned
-    before iteration completes, the associated resources may not be properly
-    cleaned up, and threads may continue running indefinitely.  For this
-    reason, it is strongly recommended that you wrap any iteration over an
+    is made to ``__next__``/`get()` that would result in `StopIteration` or
+    another exception being raised).  In the event that an `Interleaver` is
+    abandoned before iteration completes, the associated resources may not be
+    properly cleaned up, and threads may continue running indefinitely.  For
+    this reason, it is strongly recommended that you wrap any iteration over an
     `Interleaver` in the context manager in order to handle a premature end to
     iteration (including from a `KeyboardInterrupt`).
     """
@@ -247,7 +258,7 @@ class Interleaver(Generic[T]):
         thread_name_prefix: str = "",
         queue_size: Optional[int] = None,
         onerror: OnError = STOP,
-    ):
+    ) -> None:
         self._funnel: FunnelQueue[Result[T]] = FunnelQueue(queue_size)
         self._pool = ThreadPoolExecutor(
             max_workers=max_workers, thread_name_prefix=thread_name_prefix
@@ -274,7 +285,16 @@ class Interleaver(Generic[T]):
                 else:
                     self._funnel.put(Result(x))
 
-    def _submit(self, it: Iterator[T]) -> None:
+    def submit(self, it: Iterator[T]) -> None:
+        """
+        .. versionadded:: 0.2.0
+
+        Add an iterator to the `Interleaver`.
+
+        If the `Interleaver` was returned from `interleave()` or has already
+        had `finalize()` called on it, calling `submit()` will result in a
+        `ValueError`.
+        """
         # The funnel's producer count needs to be incremented outside of
         # `_process()` so that the increment happens immediately rather than
         # being delayed until the thread actually starts.  Without this, if an
@@ -286,7 +306,16 @@ class Interleaver(Generic[T]):
             self._pool.submit(self._process, self._funnel.putting(), it)
         )
 
-    def _finalize(self) -> None:
+    def finalize(self) -> None:
+        """
+        .. versionadded:: 0.2.0
+
+        Notify the `Interleaver` that all iterators have been registered.  This
+        method must be called in order for the `Interleaver` to detect the end
+        of iteration; if this method has not been called and all submitted
+        iterators have finished & had their values retrieved, then a subsequent
+        call to ``next(it)`` will end up hanging indefinitely.
+        """
         # Tell the funnel that all producers have been initialized and there
         # will not be any more.  Without this, if the first producer was
         # registered, finished, and unregistered before any further producers
@@ -298,8 +327,7 @@ class Interleaver(Generic[T]):
         self._funnel.finalize()
         # (An alternative to this system would be to pass the total number of
         # iterators/producers to the `FunnelQueue` constructor, but then we
-        # wouldn't be able to support submitting new iterators to the batch,
-        # which may or may not become an eventual feature.)
+        # wouldn't be able to support submitting new iterators to the batch.)
 
     def __enter__(self) -> Interleaver[T]:
         return self
@@ -323,6 +351,8 @@ class Interleaver(Generic[T]):
 
     def get(self, block: bool = True, timeout: Optional[float] = None) -> T:
         """
+        .. versionadded:: 0.2.0
+
         Fetch the next value generated by the iterators.  If all iterators have
         finished and all values have been retrieved, raises
         `interleaver.EndOfInputError`.  If ``block`` is ``False`` and no values
@@ -375,15 +405,17 @@ class Interleaver(Generic[T]):
 
     def shutdown(self, wait: bool = True, *, _mode: OnError = STOP) -> None:
         """
-        Tell all running iterators to stop iterating, cancel any outstanding
-        iterators that haven't been started yet, and shut down the
-        `ThreadPoolExecutor`.  The ``wait`` parameter is passed through to the
-        call to ``ThreadPoolExecutor.shutdown()``.
+        Call `finalize()` if it hasn't been called yet, tell all running
+        iterators to stop iterating, cancel any outstanding iterators that
+        haven't been started yet, and shut down the `ThreadPoolExecutor`.  The
+        ``wait`` parameter is passed through to the call to
+        ``ThreadPoolExecutor.shutdown()``.
 
         The `Interleaver` can continue to be iterated over after calling
         `shutdown()` and will yield any remaining values produced by the
         iterators before they stopped completely.
         """
+        self.finalize()
         if _mode in (STOP, DRAIN):
             self._done_flag = True
         if _mode is not FINISH_ALL:
@@ -456,6 +488,6 @@ def interleave(
         onerror=onerror,
     )
     for it in iterators:
-        ilvr._submit(it)
-    ilvr._finalize()
+        ilvr.submit(it)
+    ilvr.finalize()
     return ilvr

@@ -17,6 +17,7 @@ from interleave import (
     FINISH_CURRENT,
     STOP,
     EndOfInputError,
+    Interleaver,
     interleave,
 )
 
@@ -663,4 +664,77 @@ def test_get_finish_all() -> None:
         with pytest.raises(EndOfInputError):
             it.get(block=False)
         assert str(excinfo.value) == "This is an error."
+        assert active_count() == threads
+
+
+def test_submit() -> None:
+    threads = active_count()
+    it: Interleaver[Tuple[int, int]] = Interleaver()
+    with it:
+        assert active_count() == threads
+        with pytest.raises(Empty):
+            it.get(timeout=UNIT)
+        it.submit(sleeper(0, (0, 3)))
+        it.submit(sleeper(1, (1, 3)))
+        assert it.get(timeout=UNIT) == (0, 0)
+        assert it.get() == (1, 0)
+        it.submit(sleeper(2, (1, 3)))
+        assert it.get() == (2, 0)
+        assert it.get() == (0, 1)
+        assert it.get() == (1, 1)
+        assert it.get() == (2, 1)
+        with pytest.raises(Empty):
+            it.get(timeout=UNIT)
+        it.submit(sleeper(3, (0, 1, 1)))
+        it.finalize()
+        with pytest.raises(ValueError) as excinfo:
+            it.submit(sleeper(4, (0, 1, 1)))
+        assert (
+            str(excinfo.value)
+            == "Cannot submit new producers after finalize() is called"
+        )
+        assert it.get() == (3, 0)
+        assert it.get() == (3, 1)
+        assert it.get() == (3, 2)
+        with pytest.raises(EndOfInputError):
+            it.get()
+        assert active_count() == threads
+
+
+def test_submit_after_shutdown() -> None:
+    threads = active_count()
+    it: Interleaver[Tuple[int, int]] = Interleaver()
+    with it:
+        assert active_count() == threads
+        it.submit(sleeper(0, (0, 1, 1)))
+        assert it.get() == (0, 0)
+        it.shutdown()
+        assert active_count() == threads
+        with pytest.raises(ValueError) as excinfo:
+            it.submit(sleeper(1, (0, 1, 1)))
+        assert (
+            str(excinfo.value)
+            == "Cannot submit new producers after finalize() is called"
+        )
+        assert active_count() == threads
+
+
+def test_finalize_on_shutdown() -> None:
+    threads = active_count()
+    it: Interleaver[Tuple[int, int]] = Interleaver()
+    with it:
+        assert active_count() == threads
+        with pytest.raises(Empty):
+            it.get(timeout=UNIT)
+        it.submit(sleeper(0, (0, 3)))
+        it.submit(sleeper(1, (1, 3)))
+        assert it.get(timeout=UNIT) == (0, 0)
+        assert it.get() == (1, 0)
+        assert it.get() == (0, 1)
+        assert it.get() == (1, 1)
+        with pytest.raises(Empty):
+            it.get(timeout=UNIT)
+        it.shutdown()
+        with pytest.raises(EndOfInputError):
+            it.get()
         assert active_count() == threads

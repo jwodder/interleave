@@ -61,21 +61,22 @@ def test_simple() -> None:
     ]
     threads = active_count()
     cb = MagicMock()
-    assert list(
-        interleave(sleeper(i, intervals, cb) for i, intervals in enumerate(INTERVALS))
-    ) == [
-        (0, 0),
-        (0, 1),
-        (1, 0),
-        (0, 2),
-        (1, 1),
-        (2, 0),
-        (1, 2),
-        (2, 1),
-        (2, 2),
-    ]
-    assert active_count() == threads
-    assert cb.call_args_list == [call(i) for i in range(len(INTERVALS))]
+    with interleave(
+        sleeper(i, intervals, cb) for i, intervals in enumerate(INTERVALS)
+    ) as it:
+        assert list(it) == [
+            (0, 0),
+            (0, 1),
+            (1, 0),
+            (0, 2),
+            (1, 1),
+            (2, 0),
+            (1, 2),
+            (2, 1),
+            (2, 2),
+        ]
+        assert active_count() == threads
+        assert cb.call_args_list == [call(i) for i in range(len(INTERVALS))]
 
 
 def test_timing() -> None:
@@ -85,17 +86,21 @@ def test_timing() -> None:
         (5, 2, 1),
     ]
     prev: Optional[float] = None
-    for _ in interleave(sleeper(i, intervals) for i, intervals in enumerate(INTERVALS)):
-        now = monotonic()
-        if prev is not None:
-            assert isclose(now - prev, UNIT, rel_tol=0.3, abs_tol=0.1)
-        prev = now
+    with interleave(
+        sleeper(i, intervals) for i, intervals in enumerate(INTERVALS)
+    ) as it:
+        for _ in it:
+            now = monotonic()
+            if prev is not None:
+                assert isclose(now - prev, UNIT, rel_tol=0.3, abs_tol=0.1)
+            prev = now
 
 
 def test_no_iterators() -> None:
-    it: Iterator[Any] = interleave([])
-    with pytest.raises(StopIteration):
-        next(it)
+    it: Iterator[Any]
+    with interleave([]) as it:
+        with pytest.raises(StopIteration):
+            next(it)
 
 
 def test_ragged() -> None:
@@ -104,20 +109,21 @@ def test_ragged() -> None:
         (2, 2, 3),
         (5, 3),
     ]
-    assert list(
-        interleave(sleeper(i, intervals) for i, intervals in enumerate(INTERVALS))
-    ) == [
-        (0, 0),
-        (0, 1),
-        (1, 0),
-        (0, 2),
-        (1, 1),
-        (2, 0),
-        (0, 3),
-        (1, 2),
-        (2, 1),
-        (0, 4),
-    ]
+    with interleave(
+        sleeper(i, intervals) for i, intervals in enumerate(INTERVALS)
+    ) as it:
+        assert list(it) == [
+            (0, 0),
+            (0, 1),
+            (1, 0),
+            (0, 2),
+            (1, 1),
+            (2, 0),
+            (0, 3),
+            (1, 2),
+            (2, 1),
+            (0, 4),
+        ]
 
 
 def test_shrinking_ragged() -> None:
@@ -128,20 +134,21 @@ def test_shrinking_ragged() -> None:
         (9,),
         (),
     ]
-    assert list(
-        interleave(sleeper(i, intervals) for i, intervals in enumerate(INTERVALS))
-    ) == [
-        (0, 0),
-        (0, 1),
-        (1, 0),
-        (0, 2),
-        (1, 1),
-        (2, 0),
-        (0, 3),
-        (1, 2),
-        (2, 1),
-        (3, 0),
-    ]
+    with interleave(
+        sleeper(i, intervals) for i, intervals in enumerate(INTERVALS)
+    ) as it:
+        assert list(it) == [
+            (0, 0),
+            (0, 1),
+            (1, 0),
+            (0, 2),
+            (1, 1),
+            (2, 0),
+            (0, 3),
+            (1, 2),
+            (2, 1),
+            (3, 0),
+        ]
 
 
 def test_growing_ragged() -> None:
@@ -152,20 +159,21 @@ def test_growing_ragged() -> None:
         (3, 1, 2),
         (5, 2, 1, 1),
     ]
-    assert list(
-        interleave(sleeper(i, intervals) for i, intervals in enumerate(INTERVALS))
-    ) == [
-        (1, 0),
-        (2, 0),
-        (2, 1),
-        (3, 0),
-        (3, 1),
-        (4, 0),
-        (3, 2),
-        (4, 1),
-        (4, 2),
-        (4, 3),
-    ]
+    with interleave(
+        sleeper(i, intervals) for i, intervals in enumerate(INTERVALS)
+    ) as it:
+        assert list(it) == [
+            (1, 0),
+            (2, 0),
+            (2, 1),
+            (3, 0),
+            (3, 1),
+            (4, 0),
+            (3, 2),
+            (4, 1),
+            (4, 2),
+            (4, 3),
+        ]
 
 
 def test_error() -> None:
@@ -176,18 +184,20 @@ def test_error() -> None:
     ]
     threads = active_count()
     cb = MagicMock()
-    it = interleave(sleeper(i, intervals, cb) for i, intervals in enumerate(INTERVALS))
-    for expected in [(0, 0), (0, 1), (1, 0), (0, 2), (1, 1)]:
-        assert next(it) == expected
-    with pytest.raises(RuntimeError) as excinfo:
-        next(it)
-    with pytest.raises(StopIteration):
-        next(it)
-    with pytest.raises(StopIteration):
-        next(it)
-    assert str(excinfo.value) == "This is an error."
-    assert active_count() == threads
-    assert cb.call_args_list == [call(0), call(1)]
+    with interleave(
+        sleeper(i, intervals, cb) for i, intervals in enumerate(INTERVALS)
+    ) as it:
+        for expected in [(0, 0), (0, 1), (1, 0), (0, 2), (1, 1)]:
+            assert next(it) == expected
+        with pytest.raises(RuntimeError) as excinfo:
+            next(it)
+        with pytest.raises(StopIteration):
+            next(it)
+        with pytest.raises(StopIteration):
+            next(it)
+        assert str(excinfo.value) == "This is an error."
+        assert active_count() == threads
+        assert cb.call_args_list == [call(0), call(1)]
 
 
 def test_error_sized_queue() -> None:
@@ -204,18 +214,18 @@ def test_error_sized_queue() -> None:
 
     threads = active_count()
     cb = MagicMock()
-    it = interleave(
+    with interleave(
         [sleeper(i, intervals, cb) for i, intervals in enumerate(INTERVALS)]
         + [queue_spam(len(INTERVALS))],
         queue_size=4,
-    )
-    for expected in [(0, 0), (0, 1), (1, 0), (0, 2), (1, 1)]:
-        assert next(it) == expected
-    with pytest.raises(RuntimeError) as excinfo:
-        next(it)
-    assert str(excinfo.value) == "This is an error."
-    assert active_count() == threads
-    assert cb.call_args_list == [call(0), call(1)]
+    ) as it:
+        for expected in [(0, 0), (0, 1), (1, 0), (0, 2), (1, 1)]:
+            assert next(it) == expected
+        with pytest.raises(RuntimeError) as excinfo:
+            next(it)
+        assert str(excinfo.value) == "This is an error."
+        assert active_count() == threads
+        assert cb.call_args_list == [call(0), call(1)]
 
 
 def test_finish_current() -> None:
@@ -227,27 +237,27 @@ def test_finish_current() -> None:
     ]
     threads = active_count()
     cb = MagicMock()
-    it = interleave(
+    with interleave(
         [sleeper(i, intervals, cb) for i, intervals in enumerate(INTERVALS)],
         onerror=FINISH_CURRENT,
-    )
-    for expected in [
-        (0, 0),
-        (0, 1),
-        (1, 0),
-        (0, 2),
-        (1, 1),
-        (2, 0),
-        (2, 1),
-        (3, 0),
-        (2, 2),
-    ]:
-        assert next(it) == expected
-    with pytest.raises(RuntimeError) as excinfo:
-        next(it)
-    assert str(excinfo.value) == "This is an error."
-    assert active_count() == threads
-    assert cb.call_args_list == [call(0), call(1), call(3), call(2)]
+    ) as it:
+        for expected in [
+            (0, 0),
+            (0, 1),
+            (1, 0),
+            (0, 2),
+            (1, 1),
+            (2, 0),
+            (2, 1),
+            (3, 0),
+            (2, 2),
+        ]:
+            assert next(it) == expected
+        with pytest.raises(RuntimeError) as excinfo:
+            next(it)
+        assert str(excinfo.value) == "This is an error."
+        assert active_count() == threads
+        assert cb.call_args_list == [call(0), call(1), call(3), call(2)]
 
 
 def test_max_workers() -> None:
@@ -260,28 +270,27 @@ def test_max_workers() -> None:
     ]
     threads = active_count()
     cb = MagicMock()
-    assert list(
-        interleave(
-            [sleeper(i, intervals, cb) for i, intervals in enumerate(INTERVALS)],
-            max_workers=4,
-        )
-    ) == [
-        (0, 0),
-        (0, 1),
-        (1, 0),
-        (0, 2),
-        (1, 1),
-        (2, 0),
-        (0, 3),
-        (4, 0),
-        (2, 1),
-        (3, 0),
-        (4, 1),
-        (2, 2),
-        (3, 1),
-    ]
-    assert active_count() == threads
-    assert cb.call_args_list == [call(1), call(0), call(4), call(2), call(3)]
+    with interleave(
+        [sleeper(i, intervals, cb) for i, intervals in enumerate(INTERVALS)],
+        max_workers=4,
+    ) as it:
+        assert list(it) == [
+            (0, 0),
+            (0, 1),
+            (1, 0),
+            (0, 2),
+            (1, 1),
+            (2, 0),
+            (0, 3),
+            (4, 0),
+            (2, 1),
+            (3, 0),
+            (4, 1),
+            (2, 2),
+            (3, 1),
+        ]
+        assert active_count() == threads
+        assert cb.call_args_list == [call(1), call(0), call(4), call(2), call(3)]
 
 
 def test_finish_current_max_workers() -> None:
@@ -333,32 +342,39 @@ def test_finish_all_max_workers() -> None:
     ]
     threads = active_count()
     cb = MagicMock()
-    it = interleave(
+    with interleave(
         [sleeper(i, intervals, cb) for i, intervals in enumerate(INTERVALS)],
         max_workers=4,
         onerror=FINISH_ALL,
-    )
-    for expected in [
-        (0, 0),
-        (0, 1),
-        (1, 0),
-        (0, 2),
-        (1, 1),
-        (2, 0),
-        (4, 0),
-        (5, 0),
-        (2, 1),
-        (3, 0),
-        (4, 1),
-        (5, 1),
-        (3, 1),
-    ]:
-        assert next(it) == expected
-    with pytest.raises(RuntimeError) as excinfo:
-        next(it)
-    assert str(excinfo.value) == "This is an error."
-    assert active_count() == threads
-    assert cb.call_args_list == [call(0), call(1), call(2), call(4), call(5), call(3)]
+    ) as it:
+        for expected in [
+            (0, 0),
+            (0, 1),
+            (1, 0),
+            (0, 2),
+            (1, 1),
+            (2, 0),
+            (4, 0),
+            (5, 0),
+            (2, 1),
+            (3, 0),
+            (4, 1),
+            (5, 1),
+            (3, 1),
+        ]:
+            assert next(it) == expected
+        with pytest.raises(RuntimeError) as excinfo:
+            next(it)
+        assert str(excinfo.value) == "This is an error."
+        assert active_count() == threads
+        assert cb.call_args_list == [
+            call(0),
+            call(1),
+            call(2),
+            call(4),
+            call(5),
+            call(3),
+        ]
 
 
 def test_drain() -> None:
@@ -369,17 +385,17 @@ def test_drain() -> None:
     ]
     threads = active_count()
     cb = MagicMock()
-    it = interleave(
+    with interleave(
         [sleeper(i, intervals, cb) for i, intervals in enumerate(INTERVALS)],
         onerror=DRAIN,
-    )
-    for expected in [(0, 0), (0, 1), (1, 0), (0, 2), (1, 1), (2, 0), (0, 3)]:
-        assert next(it) == expected
-    with pytest.raises(RuntimeError) as excinfo:
-        next(it)
-    assert str(excinfo.value) == "This is an error."
-    assert active_count() == threads
-    assert cb.call_args_list == [call(1)]
+    ) as it:
+        for expected in [(0, 0), (0, 1), (1, 0), (0, 2), (1, 1), (2, 0), (0, 3)]:
+            assert next(it) == expected
+        with pytest.raises(RuntimeError) as excinfo:
+            next(it)
+        assert str(excinfo.value) == "This is an error."
+        assert active_count() == threads
+        assert cb.call_args_list == [call(1)]
 
 
 def test_stop() -> None:
@@ -390,17 +406,17 @@ def test_stop() -> None:
     ]
     threads = active_count()
     cb = MagicMock()
-    it = interleave(
+    with interleave(
         [sleeper(i, intervals, cb) for i, intervals in enumerate(INTERVALS)],
         onerror=STOP,
-    )
-    for expected in [(0, 0), (0, 1), (1, 0), (0, 2), (1, 1)]:
-        assert next(it) == expected
-    with pytest.raises(RuntimeError) as excinfo:
-        next(it)
-    assert str(excinfo.value) == "This is an error."
-    assert active_count() == threads
-    assert cb.call_args_list == [call(1)]
+    ) as it:
+        for expected in [(0, 0), (0, 1), (1, 0), (0, 2), (1, 1)]:
+            assert next(it) == expected
+        with pytest.raises(RuntimeError) as excinfo:
+            next(it)
+        assert str(excinfo.value) == "This is an error."
+        assert active_count() == threads
+        assert cb.call_args_list == [call(1)]
 
 
 def test_with() -> None:
@@ -467,16 +483,18 @@ def test_shutdown_after_exhaustion() -> None:
         (1, 2),
     ]
     threads = active_count()
-    it = interleave(sleeper(i, intervals) for i, intervals in enumerate(INTERVALS))
-    for expected in [(0, 0), (1, 0), (0, 1), (1, 1)]:
-        assert next(it) == expected
-    with pytest.raises(StopIteration):
-        next(it)
-    assert active_count() == threads
-    it.shutdown()
-    with pytest.raises(StopIteration):
-        next(it)
-    assert active_count() == threads
+    with interleave(
+        sleeper(i, intervals) for i, intervals in enumerate(INTERVALS)
+    ) as it:
+        for expected in [(0, 0), (1, 0), (0, 1), (1, 1)]:
+            assert next(it) == expected
+        with pytest.raises(StopIteration):
+            next(it)
+        assert active_count() == threads
+        it.shutdown()
+        with pytest.raises(StopIteration):
+            next(it)
+        assert active_count() == threads
 
 
 def test_shutdown_after_error() -> None:
@@ -486,17 +504,19 @@ def test_shutdown_after_error() -> None:
         (5, 3),
     ]
     threads = active_count()
-    it = interleave(sleeper(i, intervals) for i, intervals in enumerate(INTERVALS))
-    for expected in [(0, 0), (0, 1), (1, 0), (0, 2), (1, 1)]:
-        assert next(it) == expected
-    with pytest.raises(RuntimeError) as excinfo:
-        next(it)
-    assert str(excinfo.value) == "This is an error."
-    assert active_count() == threads
-    it.shutdown()
-    with pytest.raises(StopIteration):
-        next(it)
-    assert active_count() == threads
+    with interleave(
+        sleeper(i, intervals) for i, intervals in enumerate(INTERVALS)
+    ) as it:
+        for expected in [(0, 0), (0, 1), (1, 0), (0, 2), (1, 1)]:
+            assert next(it) == expected
+        with pytest.raises(RuntimeError) as excinfo:
+            next(it)
+        assert str(excinfo.value) == "This is an error."
+        assert active_count() == threads
+        it.shutdown()
+        with pytest.raises(StopIteration):
+            next(it)
+        assert active_count() == threads
 
 
 def test_shutdown_and_continue() -> None:
@@ -507,13 +527,15 @@ def test_shutdown_and_continue() -> None:
     ]
     threads = active_count()
     cb = MagicMock()
-    it = interleave(sleeper(i, intervals, cb) for i, intervals in enumerate(INTERVALS))
-    for expected in [(0, 0), (0, 1), (1, 0), (0, 2), (1, 1)]:
-        assert next(it) == expected
-    it.shutdown()
-    assert active_count() == threads
-    assert list(it) == [(2, 0), (1, 2)]
-    assert cb.call_args_list == [call(0)]
+    with interleave(
+        sleeper(i, intervals, cb) for i, intervals in enumerate(INTERVALS)
+    ) as it:
+        for expected in [(0, 0), (0, 1), (1, 0), (0, 2), (1, 1)]:
+            assert next(it) == expected
+        it.shutdown()
+        assert active_count() == threads
+        assert list(it) == [(2, 0), (1, 2)]
+        assert cb.call_args_list == [call(0)]
 
 
 def test_shutdown_while_pending() -> None:
@@ -526,16 +548,16 @@ def test_shutdown_while_pending() -> None:
     ]
     threads = active_count()
     cb = MagicMock()
-    it = interleave(
+    with interleave(
         [sleeper(i, intervals, cb) for i, intervals in enumerate(INTERVALS)],
         max_workers=4,
-    )
-    for expected in [(0, 0), (0, 1), (1, 0), (0, 2), (1, 1)]:
-        assert next(it) == expected
-    it.shutdown()
-    assert active_count() == threads
-    assert list(it) == [(2, 0), (0, 3), (1, 2), (3, 0)]
-    assert cb.call_args_list == []
+    ) as it:
+        for expected in [(0, 0), (0, 1), (1, 0), (0, 2), (1, 1)]:
+            assert next(it) == expected
+        it.shutdown()
+        assert active_count() == threads
+        assert list(it) == [(2, 0), (0, 3), (1, 2), (3, 0)]
+        assert cb.call_args_list == []
 
 
 def test_shutdown_in_with() -> None:

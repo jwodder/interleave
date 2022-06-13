@@ -13,6 +13,10 @@
 .. image:: https://img.shields.io/pypi/pyversions/interleave.svg
     :target: https://pypi.org/project/interleave/
 
+.. image:: https://img.shields.io/conda/vn/conda-forge/interleave.svg
+    :target: https://anaconda.org/conda-forge/interleave
+    :alt: Conda Version
+
 .. image:: https://img.shields.io/github/license/jwodder/interleave.svg
     :target: https://opensource.org/licenses/MIT
     :alt: MIT License

@@ -9,6 +9,7 @@ Visit <https://github.com/jwodder/interleave> for more information.
 """
 
 from __future__ import annotations
+from collections.abc import Iterable, Iterator
 from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import contextmanager
 from enum import Enum
@@ -22,18 +23,13 @@ from typing import (
     Any,
     ContextManager,
     Generic,
-    Iterable,
-    Iterator,
-    List,
     NoReturn,
     Optional,
-    Tuple,
-    Type,
     TypeVar,
     cast,
 )
 
-__version__ = "0.2.0"
+__version__ = "0.3.0.dev1"
 __author__ = "John Thorvald Wodder II"
 __author_email__ = "interleave@varonathe.org"
 __license__ = "MIT"
@@ -49,8 +45,6 @@ __all__ = [
     "STOP",
     "interleave",
 ]
-
-ExcInfo = Tuple[Type[BaseException], BaseException, TracebackType]
 
 T = TypeVar("T")
 
@@ -88,7 +82,11 @@ class Result(Generic[T]):
     """
 
     def __init__(
-        self, value: Optional[T] = None, exc_info: Optional[ExcInfo] = None
+        self,
+        value: Optional[T] = None,
+        exc_info: Optional[
+            tuple[type[BaseException], BaseException, TracebackType]
+        ] = None,
     ) -> None:
         self.value = value
         self.exc_info = exc_info
@@ -264,7 +262,7 @@ class Interleaver(Generic[T]):
             max_workers=max_workers, thread_name_prefix=thread_name_prefix
         )
         self._onerror = onerror
-        self._futures: List[Future[None]] = []
+        self._futures: list[Future[None]] = []
         self._done_flag = False
         self._error: Optional[Result[T]] = None
         self._exhausted = False
@@ -334,7 +332,7 @@ class Interleaver(Generic[T]):
 
     def __exit__(
         self,
-        _exc_type: Optional[Type[BaseException]],
+        _exc_type: Optional[type[BaseException]],
         _exc_val: Optional[BaseException],
         _exc_tb: Optional[TracebackType],
     ) -> None:

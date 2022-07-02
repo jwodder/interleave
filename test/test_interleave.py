@@ -1,3 +1,5 @@
+from __future__ import annotations
+from collections.abc import Callable, Iterator, Sequence
 from itertools import count
 from math import isclose
 import os
@@ -8,7 +10,7 @@ from subprocess import PIPE, Popen
 import sys
 from threading import active_count
 from time import monotonic, sleep
-from typing import Any, Callable, Iterator, List, Optional, Sequence, Tuple, Union
+from typing import Any, Optional
 from unittest.mock import MagicMock, call
 import pytest
 from interleave import (
@@ -30,9 +32,9 @@ pytestmark = pytest.mark.flaky(reruns=5, condition=CI)
 
 def sleeper(
     tid: int,
-    delays: Sequence[Union[int, str]],
+    delays: Sequence[int | str],
     done_callback: Optional[Callable[[int], Any]] = None,
-) -> Iterator[Tuple[int, int]]:
+) -> Iterator[tuple[int, int]]:
     for i, d in enumerate(delays):
         if isinstance(d, int):
             sleep(d * UNIT)
@@ -177,7 +179,7 @@ def test_growing_ragged() -> None:
 
 
 def test_error() -> None:
-    INTERVALS: List[Tuple[Union[int, str], ...]] = [
+    INTERVALS: list[tuple[int | str, ...]] = [
         (0, 1, 2),
         (2, 2, "This is an error.", "This is not raised."),
         (5, "This is not seen.", 1),
@@ -201,13 +203,13 @@ def test_error() -> None:
 
 
 def test_error_sized_queue() -> None:
-    INTERVALS: List[Tuple[Union[int, str], ...]] = [
+    INTERVALS: list[tuple[int | str, ...]] = [
         (0, 1, 2),
         (2, 2, "This is an error.", "This is not raised."),
         (5, "This is not seen.", 1),
     ]
 
-    def queue_spam(tid: int) -> Iterator[Tuple[int, int]]:
+    def queue_spam(tid: int) -> Iterator[tuple[int, int]]:
         sleep(6 * UNIT)
         for i in count():
             yield (tid, i)
@@ -229,7 +231,7 @@ def test_error_sized_queue() -> None:
 
 
 def test_finish_current() -> None:
-    INTERVALS: List[Tuple[Union[int, str], ...]] = [
+    INTERVALS: list[tuple[int | str, ...]] = [
         (0, 1, 2),
         (2, 2, "This is an error."),
         (5, 1, 3),
@@ -294,7 +296,7 @@ def test_max_workers() -> None:
 
 
 def test_finish_current_max_workers() -> None:
-    INTERVALS: List[Tuple[Union[int, str], ...]] = [
+    INTERVALS: list[tuple[int | str, ...]] = [
         (0, 1, 2, "This is an error."),
         (2, 2),
         (5, 2, 3),
@@ -332,7 +334,7 @@ def test_finish_current_max_workers() -> None:
 
 
 def test_finish_all_max_workers() -> None:
-    INTERVALS: List[Tuple[Union[int, str], ...]] = [
+    INTERVALS: list[tuple[int | str, ...]] = [
         (0, 1, 2, "This is an error."),
         (2, 2),
         (5, 3),
@@ -378,7 +380,7 @@ def test_finish_all_max_workers() -> None:
 
 
 def test_drain() -> None:
-    INTERVALS: List[Tuple[Union[int, str], ...]] = [
+    INTERVALS: list[tuple[int | str, ...]] = [
         (0, 1, 2, 3, 1),
         (2, 2, "This is an error."),
         (5, 3),
@@ -399,7 +401,7 @@ def test_drain() -> None:
 
 
 def test_stop() -> None:
-    INTERVALS: List[Tuple[Union[int, str], ...]] = [
+    INTERVALS: list[tuple[int | str, ...]] = [
         (0, 1, 2, 3, 1),
         (2, 2, "This is an error."),
         (5, 3),
@@ -498,7 +500,7 @@ def test_shutdown_after_exhaustion() -> None:
 
 
 def test_shutdown_after_error() -> None:
-    INTERVALS: List[Tuple[Union[int, str], ...]] = [
+    INTERVALS: list[tuple[int | str, ...]] = [
         (0, 1, 2, 3, 1),
         (2, 2, "This is an error."),
         (5, 3),
@@ -600,7 +602,7 @@ def test_ctrl_c() -> None:
 
 
 def test_get_stop() -> None:
-    INTERVALS: List[Tuple[Union[int, str], ...]] = [
+    INTERVALS: list[tuple[int | str, ...]] = [
         (0, 1, 2),
         (2, 2, "This is an error.", "This is not raised."),
         (5, "This is not seen.", 1),
@@ -639,7 +641,7 @@ def test_get_stop() -> None:
 
 
 def test_get_finish_all() -> None:
-    INTERVALS: List[Tuple[Union[int, str], ...]] = [
+    INTERVALS: list[tuple[int | str, ...]] = [
         (0, 1, 2, 3),
         (2, 2, "This is an error."),
         (5, "This error will be swallowed."),
@@ -691,7 +693,7 @@ def test_get_finish_all() -> None:
 
 def test_submit() -> None:
     threads = active_count()
-    it: Interleaver[Tuple[int, int]] = Interleaver()
+    it: Interleaver[tuple[int, int]] = Interleaver()
     with it:
         assert active_count() == threads
         with pytest.raises(Empty):
@@ -725,7 +727,7 @@ def test_submit() -> None:
 
 def test_submit_after_shutdown() -> None:
     threads = active_count()
-    it: Interleaver[Tuple[int, int]] = Interleaver()
+    it: Interleaver[tuple[int, int]] = Interleaver()
     with it:
         assert active_count() == threads
         it.submit(sleeper(0, (0, 1, 1)))
@@ -743,7 +745,7 @@ def test_submit_after_shutdown() -> None:
 
 def test_finalize_on_shutdown() -> None:
     threads = active_count()
-    it: Interleaver[Tuple[int, int]] = Interleaver()
+    it: Interleaver[tuple[int, int]] = Interleaver()
     with it:
         assert active_count() == threads
         with pytest.raises(Empty):

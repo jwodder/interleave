@@ -10,6 +10,7 @@ from subprocess import PIPE, Popen
 import sys
 from threading import active_count
 from time import monotonic, sleep
+import traceback
 from typing import Any, Optional
 from unittest.mock import MagicMock, call
 import pytest
@@ -20,6 +21,7 @@ from interleave import (
     STOP,
     EndOfInputError,
     Interleaver,
+    OnError,
     interleave,
 )
 
@@ -762,3 +764,21 @@ def test_finalize_on_shutdown() -> None:
         with pytest.raises(EndOfInputError):
             it.get()
         assert active_count() == threads
+
+
+@pytest.mark.parametrize("onerror", list(OnError))
+def test_error_no_internals_in_traceback(onerror: OnError) -> None:
+    INTERVALS: list[tuple[int | str, ...]] = [
+        (0, 1, 2),
+        (2, 2, "This is an error.", "This is not raised."),
+        (5, "This is not seen.", 1),
+    ]
+    with interleave(
+        [sleeper(i, intervals) for i, intervals in enumerate(INTERVALS)],
+        onerror=onerror,
+    ) as it:
+        with pytest.raises(RuntimeError) as excinfo:
+            list(it)
+        assert "EndOfInputError" not in "".join(
+            traceback.format_exception(excinfo.type, excinfo.value, excinfo.tb)
+        )

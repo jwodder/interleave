@@ -29,7 +29,7 @@ from typing import (
     cast,
 )
 
-__version__ = "0.3.0.dev1"
+__version__ = "0.2.1.dev1"
 __author__ = "John Thorvald Wodder II"
 __author_email__ = "interleave@varonathe.org"
 __license__ = "MIT"
@@ -107,7 +107,7 @@ class Result(Generic[T]):
             return cast(T, self.value)
         else:
             _, e, tb = self.exc_info
-            raise e.with_traceback(tb)
+            raise e.with_traceback(tb) from None
 
     @classmethod
     def for_exc(cls) -> Result[Any]:

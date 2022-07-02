@@ -1,3 +1,8 @@
+v0.2.1 (in development)
+-----------------------
+- When an iterator raises an exception, the final traceback will no longer
+  include an internal `EndOfInputError`
+
 v0.2.0 (2022-02-20)
 -------------------
 - Added an `Interleaver.get(block, timeout)` method

@@ -1,5 +1,5 @@
-v0.2.1 (in development)
------------------------
+v0.2.1 (2022-07-02)
+-------------------
 - When an iterator raises an exception, the final traceback will no longer
   include an internal `EndOfInputError`
 

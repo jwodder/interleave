@@ -586,10 +586,7 @@ def test_shutdown_in_with() -> None:
 def test_ctrl_c() -> None:
     SCRIPT = Path(__file__).with_name("data") / "script.py"
     with Popen(
-        [sys.executable, "-u", str(SCRIPT)],
-        stdout=PIPE,
-        universal_newlines=True,
-        bufsize=1,
+        [sys.executable, "-u", str(SCRIPT)], stdout=PIPE, text=True, bufsize=1
     ) as p:
         assert p.stdout is not None
         for expected in [(0, 0), (0, 1), (1, 0), (0, 2), (1, 1)]:

@@ -592,7 +592,11 @@ def test_ctrl_c() -> None:
         for expected in [(0, 0), (0, 1), (1, 0), (0, 2), (1, 1)]:
             assert p.stdout.readline() == f"{expected}\n"
         p.send_signal(SIGINT)
-        r = p.wait(3 * UNIT)
+        try:
+            r = p.wait(3 * UNIT)
+        except TimeoutError:
+            p.kill()
+            raise
         assert p.stdout.read() == ""
     if sys.version_info[:2] >= (3, 8):
         # For some reason, the script exits with rc 1 instead of -SIGINT on

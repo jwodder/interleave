@@ -132,9 +132,9 @@ class EndOfInputError(Exception):
 
 class FunnelQueue(Generic[T]):
     """
-    A multiproducer queue that keeps track of the number of active producers
-    and stops outputting values once all producers have finished & all input
-    has been retrieved.
+    A multi-producer, single-consumer FIFO queue that keeps track of the number
+    of active producers and stops outputting values once all producers have
+    finished & all input has been retrieved.
 
     Each new producer must be registered by calling `putting()`, which returns
     a context manager that unregisters the producer on exit.  Once all

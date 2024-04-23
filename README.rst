@@ -1,23 +1,25 @@
-.. image:: https://www.repostatus.org/badges/latest/active.svg
+|repostatus| |ci-status| |coverage| |pyversions| |conda| |license|
+
+.. |repostatus| image:: https://www.repostatus.org/badges/latest/active.svg
     :target: https://www.repostatus.org/#active
     :alt: Project Status: Active — The project has reached a stable, usable
           state and is being actively developed.
 
-.. image:: https://github.com/jwodder/interleave/actions/workflows/test.yml/badge.svg
+.. |ci-status| image:: https://github.com/jwodder/interleave/actions/workflows/test.yml/badge.svg
     :target: https://github.com/jwodder/interleave/actions/workflows/test.yml
     :alt: CI Status
 
-.. image:: https://codecov.io/gh/jwodder/interleave/branch/master/graph/badge.svg
+.. |coverage| image:: https://codecov.io/gh/jwodder/interleave/branch/master/graph/badge.svg
     :target: https://codecov.io/gh/jwodder/interleave
 
-.. image:: https://img.shields.io/pypi/pyversions/interleave.svg
+.. |pyversions| image:: https://img.shields.io/pypi/pyversions/interleave.svg
     :target: https://pypi.org/project/interleave/
 
-.. image:: https://img.shields.io/conda/vn/conda-forge/interleave.svg
+.. |conda| image:: https://img.shields.io/conda/vn/conda-forge/interleave.svg
     :target: https://anaconda.org/conda-forge/interleave
     :alt: Conda Version
 
-.. image:: https://img.shields.io/github/license/jwodder/interleave.svg
+.. |license| image:: https://img.shields.io/github/license/jwodder/interleave.svg
     :target: https://opensource.org/licenses/MIT
     :alt: MIT License
 

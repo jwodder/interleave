@@ -19,7 +19,7 @@ def test_none_value() -> None:
 def test_reraising() -> None:
     try:
         raise ValueError("Something went wrong")
-    except BaseException:
+    except Exception:
         r = Result.for_exc()
     assert not r.success
     with pytest.raises(ValueError) as excinfo:

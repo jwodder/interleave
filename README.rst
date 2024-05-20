@@ -45,7 +45,7 @@ Example
 =======
 
 
-.. code::
+.. code:: python
 
     >>> from time import sleep, strftime
     >>> from interleave import interleave

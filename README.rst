@@ -44,33 +44,36 @@ Installation
 Example
 =======
 
->>> from time import sleep, strftime
->>> from interleave import interleave
->>>
->>> def sleeper(idno, delays):
-...     for i, d in enumerate(delays):
-...         sleep(d)
-...         yield (idno, i)
-...
->>> with interleave(
-...     [
-...         sleeper(0, [0, 1, 2]),
-...         sleeper(1, [2, 2, 2]),
-...         sleeper(2, [5, 2, 1]),
-...     ]
-... ) as it:
-...     for x in it:
-...         print(strftime("%H:%M:%S"), x)
-...
-22:08:39 (0, 0)
-22:08:40 (0, 1)
-22:08:41 (1, 0)
-22:08:42 (0, 2)
-22:08:43 (1, 1)
-22:08:44 (2, 0)
-22:08:45 (1, 2)
-22:08:46 (2, 1)
-22:08:47 (2, 2)
+
+.. code::
+
+    >>> from time import sleep, strftime
+    >>> from interleave import interleave
+    >>>
+    >>> def sleeper(idno, delays):
+    ...     for i, d in enumerate(delays):
+    ...         sleep(d)
+    ...         yield (idno, i)
+    ...
+    >>> with interleave(
+    ...     [
+    ...         sleeper(0, [0, 1, 2]),
+    ...         sleeper(1, [2, 2, 2]),
+    ...         sleeper(2, [5, 2, 1]),
+    ...     ]
+    ... ) as it:
+    ...     for x in it:
+    ...         print(strftime("%H:%M:%S"), x)
+    ...
+    22:08:39 (0, 0)
+    22:08:40 (0, 1)
+    22:08:41 (1, 0)
+    22:08:42 (0, 2)
+    22:08:43 (1, 1)
+    22:08:44 (2, 0)
+    22:08:45 (1, 2)
+    22:08:46 (2, 1)
+    22:08:47 (2, 2)
 
 
 API

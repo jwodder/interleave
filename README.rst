@@ -94,6 +94,11 @@ API
 iterator that yields the values yielded by them as they become available.  (See
 below for details on the ``Interleaver`` class.)
 
+Note that ``iterators`` (but not its elements) is fully evaluated & consumed
+before `interleave()` returns.  If you instead want ``iterators`` to be
+evaluated concurrently with the iterators themselves, see
+``lazy_interleave()``.
+
 The ``max_workers`` and ``thread_name_prefix`` parameters are passed through to
 the underlying |ThreadPoolExecutor|_ (q.v.).  ``max_workers`` determines the
 maximum number of iterators to run at one time.
@@ -139,6 +144,32 @@ are:
 
 Regardless of the value of ``onerror``, any later exceptions raised by
 iterators after the initial exception are discarded.
+
+.. code:: python
+
+    interleave.lazy_interleave(
+        iterators: Iterable[Iterator[T]],
+        *,
+        max_workers: int | None = None,
+        thread_name_prefix: str = "",
+        queue_size: int | None = None,
+        onerror: interleave.OnError = interleave.STOP,
+    ) -> interleave.Interleaver[T]
+
+*New in version 0.3.0*
+
+Like ``interleave()``, but instead of fully evaluating ``iterators``
+immediately, it is iterated over in a thread in the thread pool, and as each
+iterator is produced, it is submitted to the ``Interleaver`` concurrently with
+the ``Interleaver`` iterating over the other iterators already produced.  This
+is useful if the creation of the iterators themselves is nontrivial and
+involves work that could be done currently with the iterators themselves.
+
+Note that the ``iterators``-evaluation thread is handled the same way as other
+threads when it comes to error handling: an exception occurring in one of the
+iterator threads may (depending on the value of ``onerror``) cause the
+``iterators`` thread to be stopped, and if ``next(iter(iterators))`` raises an
+exception, it may cause all other threads to be stopped.
 
 .. code:: python
 

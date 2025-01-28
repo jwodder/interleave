@@ -35,6 +35,7 @@ __all__ = [
     "OnError",
     "STOP",
     "interleave",
+    "lazy_interleave",
 ]
 
 T = TypeVar("T")
@@ -265,6 +266,27 @@ class Interleaver(Generic[T]):
                 else:
                     self._funnel.put(Result(x))
 
+    def _process_input(
+        self, ctx: AbstractContextManager[None], it: Iterator[Iterator[T]]
+    ) -> None:
+        with ctx:
+            try:
+                while not self._done_flag:
+                    try:
+                        x = next(it)
+                    except StopIteration:
+                        return
+                    # According to various sources, only the main thread can
+                    # receive a KeyboardInterrupt, so there's no point in trying to
+                    # catch one here.
+                    except Exception:
+                        self._funnel.put(Result.for_exc())
+                        return
+                    else:
+                        self.submit(x)
+            finally:
+                self.finalize()
+
     def submit(self, it: Iterator[T]) -> None:
         """
         .. versionadded:: 0.2.0
@@ -284,6 +306,11 @@ class Interleaver(Generic[T]):
         # was finished, leading to a premature `EndOfInputError`.
         self._futures.append(
             self._pool.submit(self._process, self._funnel.putting(), it)
+        )
+
+    def _submit_input(self, it: Iterable[Iterator[T]]) -> None:
+        self._futures.append(
+            self._pool.submit(self._process_input, self._funnel.putting(), iter(it))
         )
 
     def finalize(self) -> None:
@@ -417,6 +444,11 @@ def interleave(
     Run the given iterators in separate threads and return an iterator that
     yields the values yielded by them as they become available.
 
+    Note that ``iterators`` (but not its elements) is fully evaluated &
+    consumed before `interleave()` returns.  If you instead want ``iterators``
+    to be evaluated concurrently with the iterators themselves, see
+    `lazy_interleave()`.
+
     The ``max_workers`` and ``thread_name_prefix`` parameters are passed
     through to the underlying `concurrent.futures.ThreadPoolExecutor` (q.v.).
     ``max_workers`` determines the maximum number of iterators to run at one
@@ -470,4 +502,40 @@ def interleave(
     for it in iterators:
         ilvr.submit(it)
     ilvr.finalize()
+    return ilvr
+
+
+def lazy_interleave(
+    iterators: Iterable[Iterator[T]],
+    *,
+    max_workers: int | None = None,
+    thread_name_prefix: str = "",
+    queue_size: int | None = None,
+    onerror: OnError = STOP,
+) -> Interleaver[T]:
+    """
+    .. versionadded:: 0.3.0
+
+    Like `interleave()`, but instead of fully evaluating ``iterators``
+    immediately, it is iterated over in a thread in the thread pool, and as
+    each iterator is produced, it is submitted to the `Interleaver`
+    concurrently with the `Interleaver` iterating over the other iterators
+    already produced.  This is useful if the creation of the iterators
+    themselves is nontrivial and involves work that could be done currently
+    with the iterators themselves.
+
+    Note that the ``iterators``-evaluation thread is handled the same way as
+    other threads when it comes to error handling: an exception occurring in
+    one of the iterator threads may (depending on the value of ``onerror``)
+    cause the ``iterators`` thread to be stopped, and if
+    ``next(iter(iterators))`` raises an exception, it may cause all other
+    threads to be stopped.
+    """
+    ilvr: Interleaver[T] = Interleaver(
+        max_workers=max_workers,
+        thread_name_prefix=thread_name_prefix,
+        queue_size=queue_size,
+        onerror=onerror,
+    )
+    ilvr._submit_input(iterators)
     return ilvr

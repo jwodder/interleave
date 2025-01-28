@@ -1,5 +1,6 @@
 v0.3.0 (in development)
 -----------------------
+- Added `lazy_interleave()` function
 
 v0.2.2 (2024-12-01)
 -------------------

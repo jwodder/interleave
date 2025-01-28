@@ -1,4 +1,4 @@
-from typing import Optional
+from __future__ import annotations
 import pytest
 from interleave import Result
 
@@ -11,7 +11,7 @@ def test_successful() -> None:
 
 
 def test_none_value() -> None:
-    r: Result[Optional[int]] = Result(None)
+    r: Result[int | None] = Result(None)
     assert r.success
     assert r.get() is None
 

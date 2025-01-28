@@ -84,9 +84,9 @@ API
     interleave.interleave(
         iterators: Iterable[Iterator[T]],
         *,
-        max_workers: Optional[int] = None,
+        max_workers: int | None = None,
         thread_name_prefix: str = "",
-        queue_size: Optional[int] = None,
+        queue_size: int | None = None,
         onerror: interleave.OnError = interleave.STOP,
     ) -> interleave.Interleaver[T]
 
@@ -145,9 +145,9 @@ iterators after the initial exception are discarded.
     class Interleaver(Generic[T]):
         def __init__(
             self,
-            max_workers: Optional[int] = None,
+            max_workers: int | None = None,
             thread_name_prefix: str = "",
-            queue_size: Optional[int] = None,
+            queue_size: int | None = None,
             onerror: OnError = STOP,
         )
 
@@ -204,7 +204,7 @@ will end up hanging indefinitely.
 
 .. code:: python
 
-    Interleaver.get(block: bool = True, timeout: Optional[float] = None) -> T
+    Interleaver.get(block: bool = True, timeout: float | None = None) -> T
 
 *New in version 0.2.0*
 

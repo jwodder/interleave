@@ -11,7 +11,7 @@ import sys
 from threading import active_count
 from time import monotonic, sleep
 import traceback
-from typing import Any, Optional
+from typing import Any
 from unittest.mock import MagicMock, call
 import pytest
 from interleave import (
@@ -35,7 +35,7 @@ pytestmark = pytest.mark.flaky(reruns=5, condition=CI)
 def sleeper(
     tid: int,
     delays: Sequence[int | str],
-    done_callback: Optional[Callable[[int], Any]] = None,
+    done_callback: Callable[[int], Any] | None = None,
 ) -> Iterator[tuple[int, int]]:
     for i, d in enumerate(delays):
         if isinstance(d, int):
@@ -89,7 +89,7 @@ def test_timing() -> None:
         (2, 2, 2),
         (5, 2, 1),
     ]
-    prev: Optional[float] = None
+    prev: float | None = None
     with interleave(
         sleeper(i, intervals) for i, intervals in enumerate(INTERVALS)
     ) as it:

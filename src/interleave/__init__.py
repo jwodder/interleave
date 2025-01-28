@@ -11,25 +11,16 @@ Visit <https://github.com/jwodder/interleave> for more information.
 from __future__ import annotations
 from collections.abc import Iterable, Iterator
 from concurrent.futures import Future, ThreadPoolExecutor
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from enum import Enum
 from queue import Empty, Queue, SimpleQueue
 import sys
 from threading import Lock
 from time import monotonic
 from types import TracebackType
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    ContextManager,
-    Generic,
-    NoReturn,
-    Optional,
-    TypeVar,
-    cast,
-)
+from typing import TYPE_CHECKING, Any, Generic, NoReturn, TypeVar, cast
 
-__version__ = "0.2.2"
+__version__ = "0.3.0.dev1"
 __author__ = "John Thorvald Wodder II"
 __author_email__ = "interleave@varonathe.org"
 __license__ = "MIT"
@@ -66,10 +57,10 @@ if TYPE_CHECKING:
         `queue.SimpleQueue` that is of relevance to this package
         """
 
-        def get(self, block: bool = ..., timeout: Optional[float] = ...) -> T: ...
+        def get(self, block: bool = ..., timeout: float | None = ...) -> T: ...
 
         def put(
-            self, item: T, block: bool = ..., timeout: Optional[float] = ...
+            self, item: T, block: bool = ..., timeout: float | None = ...
         ) -> None: ...
 
 
@@ -81,10 +72,10 @@ class Result(Generic[T]):
 
     def __init__(
         self,
-        value: Optional[T] = None,
-        exc_info: Optional[
-            tuple[type[BaseException], BaseException, TracebackType]
-        ] = None,
+        value: T | None = None,
+        exc_info: (
+            tuple[type[BaseException], BaseException, TracebackType] | None
+        ) = None,
     ) -> None:
         self.value = value
         self.exc_info = exc_info
@@ -140,7 +131,7 @@ class FunnelQueue(Generic[T]):
     `FunnelQueue` of this.
     """
 
-    def __init__(self, queue_size: Optional[int] = None) -> None:
+    def __init__(self, queue_size: int | None = None) -> None:
         """
         :param queue_size:
             Sets the maximum size of the internal queue.  When `None` (the
@@ -161,7 +152,7 @@ class FunnelQueue(Generic[T]):
         self.done_sentinel = object()
         self.done = False
 
-    def putting(self) -> ContextManager[None]:
+    def putting(self) -> AbstractContextManager[None]:
         """
         Increment the producer count and return a context manager that
         decrements the count on exit
@@ -210,7 +201,7 @@ class FunnelQueue(Generic[T]):
             raise ValueError("Funnel is closed for business")
         self.queue.put(value)
 
-    def get(self, block: bool = True, timeout: Optional[float] = None) -> T:
+    def get(self, block: bool = True, timeout: float | None = None) -> T:
         if self.done:
             raise EndOfInputError()
         x = self.queue.get(block=block, timeout=timeout)
@@ -250,9 +241,9 @@ class Interleaver(Generic[T]):
 
     def __init__(
         self,
-        max_workers: Optional[int] = None,
+        max_workers: int | None = None,
         thread_name_prefix: str = "",
-        queue_size: Optional[int] = None,
+        queue_size: int | None = None,
         onerror: OnError = STOP,
     ) -> None:
         self._funnel: FunnelQueue[Result[T]] = FunnelQueue(queue_size)
@@ -262,10 +253,10 @@ class Interleaver(Generic[T]):
         self._onerror = onerror
         self._futures: list[Future[None]] = []
         self._done_flag = False
-        self._error: Optional[Result[T]] = None
+        self._error: Result[T] | None = None
         self._exhausted = False
 
-    def _process(self, ctx: ContextManager[None], it: Iterator[T]) -> None:
+    def _process(self, ctx: AbstractContextManager[None], it: Iterator[T]) -> None:
         with ctx:
             while not self._done_flag:
                 try:
@@ -330,9 +321,9 @@ class Interleaver(Generic[T]):
 
     def __exit__(
         self,
-        _exc_type: Optional[type[BaseException]],
-        _exc_val: Optional[BaseException],
-        _exc_tb: Optional[TracebackType],
+        _exc_type: type[BaseException] | None,
+        _exc_val: BaseException | None,
+        _exc_tb: TracebackType | None,
     ) -> None:
         self.shutdown(wait=True)
 
@@ -345,7 +336,7 @@ class Interleaver(Generic[T]):
         except EndOfInputError:
             raise StopIteration
 
-    def get(self, block: bool = True, timeout: Optional[float] = None) -> T:
+    def get(self, block: bool = True, timeout: float | None = None) -> T:
         """
         .. versionadded:: 0.2.0
 
@@ -424,9 +415,9 @@ class Interleaver(Generic[T]):
 def interleave(
     iterators: Iterable[Iterator[T]],
     *,
-    max_workers: Optional[int] = None,
+    max_workers: int | None = None,
     thread_name_prefix: str = "",
-    queue_size: Optional[int] = None,
+    queue_size: int | None = None,
     onerror: OnError = STOP,
 ) -> Interleaver[T]:
     """

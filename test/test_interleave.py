@@ -23,6 +23,7 @@ from interleave import (
     Interleaver,
     OnError,
     interleave,
+    lazy_interleave,
 )
 
 CI = "CI" in os.environ
@@ -783,3 +784,84 @@ def test_error_no_internals_in_traceback(onerror: OnError) -> None:
         assert "EndOfInputError" not in "".join(
             traceback.format_exception(excinfo.type, excinfo.value, excinfo.tb)
         )
+
+
+def test_lazy() -> None:
+    threads = active_count()
+    cb = MagicMock()
+
+    def inputs() -> Iterator[Iterator[tuple[int, int]]]:
+        yield sleeper(0, [0, 1, 2], cb)
+        sleep(UNIT)
+        yield sleeper(1, [1, 2, 2], cb)
+        sleep(UNIT)
+        yield sleeper(2, [3, 2, 2], cb)
+        cb(-1)
+
+    with lazy_interleave(inputs()) as it:
+        assert list(it) == [
+            (0, 0),
+            (0, 1),
+            (1, 0),
+            (0, 2),
+            (1, 1),
+            (2, 0),
+            (1, 2),
+            (2, 1),
+            (2, 2),
+        ]
+        assert active_count() == threads
+        assert cb.call_args_list == [call(-1), call(0), call(1), call(2)]
+
+
+def test_lazy_error_in_input() -> None:
+    threads = active_count()
+    cb = MagicMock()
+
+    def inputs() -> Iterator[Iterator[tuple[int, int]]]:
+        yield sleeper(0, [0, 1, 2], cb)
+        sleep(UNIT)
+        yield sleeper(1, [1, 2, 3], cb)
+        sleep(UNIT)
+        yield sleeper(2, [3, 2, 2], cb)
+        sleep(4 * UNIT)
+        raise ValueError("code broke")
+
+    with lazy_interleave(inputs()) as it:
+        for expected in [(0, 0), (0, 1), (1, 0), (0, 2), (1, 1), (2, 0)]:
+            assert next(it) == expected
+        with pytest.raises(ValueError) as excinfo:
+            next(it)
+        with pytest.raises(StopIteration):
+            next(it)
+        with pytest.raises(StopIteration):
+            next(it)
+        assert str(excinfo.value) == "code broke"
+        assert active_count() == threads
+        assert cb.call_args_list == [call(0)]
+
+
+def test_lazy_error_in_iterator() -> None:
+    threads = active_count()
+    cb = MagicMock()
+
+    def inputs() -> Iterator[Iterator[tuple[int, int]]]:
+        yield sleeper(0, [0, 1, 2], cb)
+        sleep(UNIT)
+        yield sleeper(1, [1, "iterator broke"], cb)
+        sleep(2 * UNIT)
+        yield sleeper(2, [3, 2, 2], cb)
+        cb(-1)
+
+    with lazy_interleave(inputs()) as it:
+        for expected in [(0, 0), (0, 1), (1, 0)]:
+            assert next(it) == expected
+        with pytest.raises(RuntimeError) as excinfo:
+            next(it)
+        with pytest.raises(StopIteration):
+            next(it)
+        with pytest.raises(StopIteration):
+            next(it)
+        assert str(excinfo.value) == "iterator broke"
+        assert active_count() == threads
+        assert cb.call_args_list == [call(1)]

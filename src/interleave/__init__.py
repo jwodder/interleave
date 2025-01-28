@@ -18,7 +18,7 @@ import sys
 from threading import Lock
 from time import monotonic
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Generic, NoReturn, TypeVar, cast
+from typing import Any, Generic, NoReturn, Protocol, TypeVar, cast
 
 __version__ = "0.3.0.dev1"
 __author__ = "John Thorvald Wodder II"
@@ -45,23 +45,16 @@ DRAIN = OnError.DRAIN
 FINISH_CURRENT = OnError.FINISH_CURRENT
 FINISH_ALL = OnError.FINISH_ALL
 
-if TYPE_CHECKING:
-    if sys.version_info[:2] >= (3, 8):
-        from typing import Protocol
-    else:
-        from typing_extensions import Protocol
 
-    class QueueProto(Protocol, Generic[T]):
-        """
-        Protocol for the behavior shared by `queue.Queue` and
-        `queue.SimpleQueue` that is of relevance to this package
-        """
+class QueueProto(Protocol, Generic[T]):
+    """
+    Protocol for the behavior shared by `queue.Queue` and
+    `queue.SimpleQueue` that is of relevance to this package
+    """
 
-        def get(self, block: bool = ..., timeout: float | None = ...) -> T: ...
+    def get(self, block: bool = ..., timeout: float | None = ...) -> T: ...
 
-        def put(
-            self, item: T, block: bool = ..., timeout: float | None = ...
-        ) -> None: ...
+    def put(self, item: T, block: bool = ..., timeout: float | None = ...) -> None: ...
 
 
 class Result(Generic[T]):

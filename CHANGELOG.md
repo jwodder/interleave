@@ -1,3 +1,7 @@
+v0.4.0 (in development)
+-----------------------
+- Support Python 3.14
+
 v0.3.0 (2025-01-28)
 -------------------
 - Added `lazy_interleave()` function

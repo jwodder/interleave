@@ -599,10 +599,7 @@ def test_ctrl_c() -> None:
             p.kill()
             raise
         assert p.stdout.read() == ""
-    if sys.version_info[:2] >= (3, 8):
-        # For some reason, the script exits with rc 1 instead of -SIGINT on
-        # Python 3.7.
-        assert r == -SIGINT
+    assert r == -SIGINT
 
 
 def test_get_stop() -> None:

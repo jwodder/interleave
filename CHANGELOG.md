@@ -1,6 +1,7 @@
 v0.4.0 (in development)
 -----------------------
 - Support Python 3.14
+- Drop support for Python 3.8 and 3.9
 
 v0.3.0 (2025-01-28)
 -------------------

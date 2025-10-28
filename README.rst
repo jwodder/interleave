@@ -34,7 +34,7 @@ produced as soon as each one is available.
 
 Installation
 ============
-``interleave`` requires Python 3.8 or higher.  Just use `pip
+``interleave`` requires Python 3.10 or higher.  Just use `pip
 <https://pip.pypa.io>`_ for Python 3 (You have pip, right?) to install
 ``interleave`` and its dependencies::
 
